@@ -3,15 +3,15 @@
     "date": "2025-08-14",
     "text": "multiple pictures try 2",
     "images": [
-      "Nasser.png",
-      "Marc.png"
+      "Nasser.png"
     ]
   },
   {
     "date": "2025-08-14",
     "text": "multiple pictures",
     "images": [
-      "hochzeit-ljuby-paul (329 of 363).jpg"
+      "hochzeit-ljuby-paul (329 of 363).jpg",
+      "9366e8f0-beef-49c2-8b18-92bc1be7a4b4-1_047055f0-b630-41ac-92d9-e7556241f278.jpg"
     ]
   },
   {
@@ -19,13 +19,6 @@
     "text": "another picture for today",
     "images": [
       "Design.png"
-    ]
-  },
-  {
-    "date": "2025-08-14",
-    "text": "Today i will upload a new picture",
-    "images": [
-      "Chart.png"
     ]
   },
   {
@@ -37,7 +30,8 @@
   },
   {
     "date": "2025-07-14",
-    "text": "This is my next entry"
+    "text": "This is my next entry. with edits",
+    "images": []
   },
   {
     "date": "2025-07-14",

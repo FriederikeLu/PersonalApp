@@ -19,7 +19,7 @@ import shutil
 
 
 class Card(BoxLayout):
-    def __init__(self, date, text, images=None, **kwargs):
+    def __init__(self, date, text, images=None, entry_index=None, diary_page=None, **kwargs):
         super().__init__(
             orientation="vertical",
             size_hint_y=None,
@@ -45,19 +45,24 @@ class Card(BoxLayout):
                 width=1.5
             )
         self.bind(pos=self.update_bg, size=self.update_bg)
-        # Date header
+        # Date header + Edit button
+        header_layout = BoxLayout(orientation="horizontal", size_hint_y=None, height=dp(28))
         date_label = Label(
             text=date,
             bold=True,
             font_size=18,
             color=(0.2, 0.4, 0.7, 1),
-            size_hint_y=None,
-            height=dp(28),
             halign="left",
             valign="middle",
         )
         date_label.bind(size=date_label.setter("text_size"))
-        self.add_widget(date_label)
+        edit_btn = Button(text="Edit", size_hint_x=None, width=dp(60), height=dp(28))
+        if diary_page is not None and entry_index is not None:
+            edit_btn.bind(on_release=lambda instance: diary_page.open_edit_popup(entry_index))
+        header_layout.add_widget(date_label)
+        header_layout.add_widget(edit_btn)
+        self.add_widget(header_layout)
+
         # Images
         if images:
             # Place up to 3 images per row
@@ -236,9 +241,12 @@ class DiaryPage(Screen):
 
     def refresh_feed(self):
         self.feed.clear_widgets()
-        for entry in self.entries:
+        for idx, entry in enumerate(self.entries):
             images = entry.get("images", [])
-            self.feed.add_widget(Card(entry["date"], entry["text"], images=images))
+            self.feed.add_widget(Card(
+                entry["date"], entry["text"], images=images,
+                entry_index=idx, diary_page=self
+            ))
 
     def open_add_popup(self, instance):
         content = BoxLayout(orientation="vertical", spacing=dp(10), padding=dp(10))
@@ -453,5 +461,166 @@ class DiaryPage(Screen):
             popup.dismiss()
 
         save_btn.bind(on_release=save_entry)
+        cancel_btn.bind(on_release=cancel_entry)
+        popup.open()
+
+    def open_edit_popup(self, entry_index):
+        entry = self.entries[entry_index]
+        content = BoxLayout(orientation="vertical", spacing=dp(10), padding=dp(10))
+        entry_input = TextInput(
+            text=entry.get("text", ""),
+            multiline=True,
+            size_hint_y=None,
+            height=dp(80),
+        )
+        selected_images = entry.get("images", []).copy()
+        img_thumbs_layout = BoxLayout(
+            orientation="horizontal", spacing=dp(8), size_hint_y=None, height=dp(70)
+        )
+
+        def refresh_thumbs():
+            img_thumbs_layout.clear_widgets()
+            for rel_img_path in selected_images:
+                img_path = os.path.join(self.IMAGES_DIR, rel_img_path)
+                thumb = Image(
+                    source=img_path,
+                    size_hint=(None, None),
+                    size=(dp(70), dp(70)),
+                    allow_stretch=True,
+                    keep_ratio=True,
+                )
+                # Remove button for each image
+                remove_btn = Button(text="X", size_hint=(None, None), size=(dp(24), dp(24)))
+                def remove_img(instance, img=rel_img_path):
+                    if img in selected_images:
+                        selected_images.remove(img)
+                        refresh_thumbs()
+                remove_btn.bind(on_release=remove_img)
+                img_box = BoxLayout(orientation="vertical", size_hint=(None, None), size=(dp(70), dp(94)))
+                img_box.add_widget(thumb)
+                img_box.add_widget(remove_btn)
+                img_thumbs_layout.add_widget(img_box)
+
+        refresh_thumbs()
+
+        def open_file_chooser(instance):
+            fc_content = BoxLayout(
+                orientation="vertical", spacing=dp(10), padding=dp(10)
+            )
+            filechooser = FileChooserIconView(
+                filters=["*.png", "*.jpg", "*.jpeg", "*.bmp"],
+                multiselect=True,
+                size_hint_y=None,
+                height=dp(300),
+            )
+            btns = BoxLayout(
+                orientation="horizontal",
+                size_hint_y=None,
+                height=dp(40),
+                spacing=dp(10),
+            )
+            ok_btn = Button(text="OK")
+            cancel_btn = Button(text="Cancel")
+            btns.add_widget(ok_btn)
+            btns.add_widget(cancel_btn)
+            fc_content.add_widget(
+                Label(
+                    text="Select up to 4 images",
+                    font_size=16,
+                    size_hint_y=None,
+                    height=dp(30),
+                )
+            )
+            fc_content.add_widget(filechooser)
+            fc_content.add_widget(btns)
+            fc_popup = Popup(
+                title="",
+                content=fc_content,
+                size_hint=(None, None),
+                size=(dp(500), dp(400)),
+                auto_dismiss=False,
+            )
+
+            def set_images(instance):
+                selected = filechooser.selection[:4]
+                os.makedirs(self.IMAGES_DIR, exist_ok=True)
+                for img_path in selected:
+                    filename = os.path.basename(img_path)
+                    dest_path = os.path.join(self.IMAGES_DIR, filename)
+                    base, ext = os.path.splitext(filename)
+                    counter = 1
+                    while os.path.exists(dest_path):
+                        filename = f"{base}_{counter}{ext}"
+                        dest_path = os.path.join(self.IMAGES_DIR, filename)
+                        counter += 1
+                    try:
+                        shutil.copy(img_path, dest_path)
+                        rel_path = os.path.relpath(dest_path, self.IMAGES_DIR)
+                        if rel_path not in selected_images:
+                            selected_images.append(rel_path)
+                    except Exception as e:
+                        print(f"Error copying image: {e}")
+                refresh_thumbs()
+                fc_popup.dismiss()
+
+            def cancel_fc(instance):
+                fc_popup.dismiss()
+
+            ok_btn.bind(on_release=set_images)
+            cancel_btn.bind(on_release=cancel_fc)
+            fc_popup.open()
+
+        img_btn = Button(text="Add Photo(s)", size_hint_y=None, height=dp(40))
+        img_btn.bind(on_release=open_file_chooser)
+
+        btn_layout = BoxLayout(
+            orientation="horizontal", size_hint_y=None, height=dp(40), spacing=dp(10)
+        )
+        save_btn = Button(text="Save")
+        delete_btn = Button(text="Delete", background_color=(1, 0.3, 0.3, 1))
+        cancel_btn = Button(text="Cancel")
+        btn_layout.add_widget(save_btn)
+        btn_layout.add_widget(delete_btn)
+        btn_layout.add_widget(cancel_btn)
+
+        content.add_widget(Label(
+            text="Edit Diary Entry",
+            font_size=18,
+            bold=True,
+            size_hint_y=None,
+            height=dp(30),
+        ))
+        content.add_widget(entry_input)
+        content.add_widget(img_btn)
+        content.add_widget(img_thumbs_layout)
+        content.add_widget(btn_layout)
+        popup = Popup(
+            title="",
+            content=content,
+            size_hint=(None, None),
+            size=(dp(400), dp(500)),
+            auto_dismiss=False,
+        )
+
+        def save_entry(instance):
+            text = entry_input.text.strip()
+            if text:
+                self.entries[entry_index]["text"] = text
+                self.entries[entry_index]["images"] = list(selected_images)
+                self.save_entries()
+                self.refresh_feed()
+            popup.dismiss()
+
+        def delete_entry(instance):
+            del self.entries[entry_index]
+            self.save_entries()
+            self.refresh_feed()
+            popup.dismiss()
+
+        def cancel_entry(instance):
+            popup.dismiss()
+
+        save_btn.bind(on_release=save_entry)
+        delete_btn.bind(on_release=delete_entry)
         cancel_btn.bind(on_release=cancel_entry)
         popup.open()
