@@ -1,0 +1,24 @@
+[
+  {
+    "date": "2025-08-14",
+    "text": "Today i will upload a new picture",
+    "images": [
+      "/Users/friedi/PycharmProjects/PersonalApp/ui/../data/diaries_images/Chart.png"
+    ]
+  },
+  {
+    "date": "2025-07-15",
+    "text": "A new entry with picture",
+    "images": [
+      "/Users/friedi/Documents/CoCoPred/Paper/Figures/boxplotSC_acc.png"
+    ]
+  },
+  {
+    "date": "2025-07-14",
+    "text": "This is my next entry"
+  },
+  {
+    "date": "2025-07-14",
+    "text": "😃 Today i started creating this new app."
+  }
+]

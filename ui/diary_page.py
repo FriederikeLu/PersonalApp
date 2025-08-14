@@ -1,0 +1,380 @@
+from kivy.uix.screenmanager import Screen
+from kivy.uix.boxlayout import BoxLayout
+from kivy.uix.label import Label
+from kivy.uix.scrollview import ScrollView
+from kivy.uix.gridlayout import GridLayout
+from kivy.uix.widget import Widget
+from kivy.graphics import Color, RoundedRectangle
+from kivy.metrics import dp
+from kivy.uix.button import Button
+from kivy.uix.popup import Popup
+from kivy.uix.textinput import TextInput
+import datetime
+import os
+import json
+from kivy.uix.spinner import Spinner
+from kivy.uix.image import Image
+from kivy.uix.filechooser import FileChooserIconView
+import shutil
+
+
+class Card(BoxLayout):
+    def __init__(self, date, text, images=None, **kwargs):
+        super().__init__(
+            orientation="vertical",
+            size_hint_y=None,
+            height=dp(100) + (dp(70) if images else 0),
+            padding=dp(12),
+            spacing=dp(6),
+            **kwargs,
+        )
+        with self.canvas.before:
+            Color(1, 1, 1, 1)  # White card
+            self.bg = RoundedRectangle(radius=[dp(16)], pos=self.pos, size=self.size)
+        self.bind(pos=self.update_bg, size=self.update_bg)
+        # Date header
+        date_label = Label(
+            text=date,
+            bold=True,
+            font_size=18,
+            color=(0.2, 0.4, 0.7, 1),
+            size_hint_y=None,
+            height=dp(28),
+            halign="left",
+            valign="middle",
+        )
+        date_label.bind(size=date_label.setter("text_size"))
+        # Entry text
+        entry_label = Label(
+            text=text,
+            font_size=15,
+            color=(0.1, 0.1, 0.1, 1),
+            size_hint_y=None,
+            height=dp(50),
+            halign="left",
+            valign="top",
+        )
+        entry_label.bind(size=entry_label.setter("text_size"))
+        self.add_widget(date_label)
+        self.add_widget(entry_label)
+        # Images
+        if images:
+            img_layout = BoxLayout(
+                orientation="horizontal", spacing=dp(8), size_hint_y=None, height=dp(70)
+            )
+            for img_path in images[:4]:
+                thumb = Image(
+                    source=img_path,
+                    size_hint=(None, None),
+                    size=(dp(70), dp(70)),
+                    allow_stretch=True,
+                    keep_ratio=True,
+                )
+
+                def open_img_popup(instance, path=img_path):
+                    popup = Popup(
+                        title="",
+                        content=Image(source=path, allow_stretch=True, keep_ratio=True),
+                        size_hint=(None, None),
+                        size=(dp(500), dp(500)),
+                    )
+                    popup.open()
+
+                thumb.bind(
+                    on_touch_down=lambda instance, touch, path=img_path: (
+                        open_img_popup(instance, path)
+                        if instance.collide_point(*touch.pos) and touch.is_double_tap
+                        else None
+                    )
+                )
+                img_layout.add_widget(thumb)
+            self.add_widget(img_layout)
+
+    def update_bg(self, *args):
+        self.bg.pos = self.pos
+        self.bg.size = self.size
+
+
+class DiaryPage(Screen):
+    DATA_FILE = os.path.join(os.path.dirname(__file__), "../data/diary_entries.json")
+    IMAGES_DIR = os.path.join(os.path.dirname(__file__), "../data/diaries_images")
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.entries = self.load_entries()
+        # Main background
+        main_layout = BoxLayout(
+            orientation="vertical",
+            padding=[dp(16), dp(16), dp(16), dp(16)],
+            spacing=dp(12),
+        )
+        header_layout = BoxLayout(
+            orientation="horizontal", size_hint_y=None, height=dp(48)
+        )
+        header = Label(
+            text="Diary Page", font_size=24, bold=True, color=(0.2, 0.4, 0.7, 1)
+        )
+        add_btn = Button(text="+ Add", size_hint_x=None, width=dp(80))
+        add_btn.bind(on_release=self.open_add_popup)
+        header_layout.add_widget(header)
+        header_layout.add_widget(add_btn)
+        main_layout.add_widget(header_layout)
+        # Scrollable area
+        self.scrollview = ScrollView()
+        self.feed = GridLayout(
+            cols=1, spacing=dp(16), size_hint_y=None, padding=[0, 0, 0, dp(16)]
+        )
+        self.feed.bind(minimum_height=self.feed.setter("height"))
+        self.refresh_feed()
+        self.scrollview.add_widget(self.feed)
+        main_layout.add_widget(self.scrollview)
+        self.add_widget(main_layout)
+
+    def load_entries(self):
+        path = os.path.abspath(self.DATA_FILE)
+        if os.path.exists(path):
+            try:
+                with open(path, "r", encoding="utf-8") as f:
+                    return json.load(f)
+            except Exception:
+                return []
+        else:
+            return [
+                {
+                    "date": "2025-07-14",
+                    "text": "😃 Today i started creating this new app.",
+                },
+            ]
+
+    def save_entries(self):
+        path = os.path.abspath(self.DATA_FILE)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        try:
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(self.entries, f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            print(f"Error saving diary entries: {e}")
+
+    def refresh_feed(self):
+        self.feed.clear_widgets()
+        for entry in self.entries:
+            images = entry.get("images", [])
+            self.feed.add_widget(Card(entry["date"], entry["text"], images=images))
+
+    def open_add_popup(self, instance):
+        content = BoxLayout(orientation="vertical", spacing=dp(10), padding=dp(10))
+        entry_input = TextInput(
+            hint_text="Write your diary entry...",
+            multiline=True,
+            size_hint_y=None,
+            height=dp(80),
+        )
+        today = datetime.date.today()
+        selected_date = [today]
+        selected_images = []
+
+        def update_date_btn_text():
+            date_btn.text = selected_date[0].isoformat()
+
+        def open_date_picker(instance):
+            picker_content = BoxLayout(
+                orientation="vertical", spacing=dp(10), padding=dp(10)
+            )
+            # Year, month, day spinners
+            years = [str(y) for y in range(today.year - 5, today.year + 6)]
+            months = [str(m).zfill(2) for m in range(1, 13)]
+            days = [str(d).zfill(2) for d in range(1, 32)]
+            year_spinner = Spinner(
+                text=str(selected_date[0].year),
+                values=years,
+                size_hint_y=None,
+                height=dp(40),
+            )
+            month_spinner = Spinner(
+                text=str(selected_date[0].month).zfill(2),
+                values=months,
+                size_hint_y=None,
+                height=dp(40),
+            )
+            day_spinner = Spinner(
+                text=str(selected_date[0].day).zfill(2),
+                values=days,
+                size_hint_y=None,
+                height=dp(40),
+            )
+            btns = BoxLayout(
+                orientation="horizontal",
+                size_hint_y=None,
+                height=dp(40),
+                spacing=dp(10),
+            )
+            ok_btn = Button(text="OK")
+            cancel_btn = Button(text="Cancel")
+            btns.add_widget(ok_btn)
+            btns.add_widget(cancel_btn)
+            picker_content.add_widget(
+                Label(text="Select Date", font_size=16, size_hint_y=None, height=dp(30))
+            )
+            picker_content.add_widget(year_spinner)
+            picker_content.add_widget(month_spinner)
+            picker_content.add_widget(day_spinner)
+            picker_content.add_widget(btns)
+            picker_popup = Popup(
+                title="",
+                content=picker_content,
+                size_hint=(None, None),
+                size=(dp(250), dp(300)),
+                auto_dismiss=False,
+            )
+
+            def set_date(instance):
+                try:
+                    y = int(year_spinner.text)
+                    m = int(month_spinner.text)
+                    d = int(day_spinner.text)
+                    selected_date[0] = datetime.date(y, m, d)
+                    update_date_btn_text()
+                except Exception:
+                    pass
+                picker_popup.dismiss()
+
+            def cancel_picker(instance):
+                picker_popup.dismiss()
+
+            ok_btn.bind(on_release=set_date)
+            cancel_btn.bind(on_release=cancel_picker)
+            picker_popup.open()
+
+        date_btn = Button(text=today.isoformat(), size_hint_y=None, height=dp(40))
+        date_btn.bind(on_release=open_date_picker)
+        # Image selection
+        img_btn = Button(text="Add Photo(s)", size_hint_y=None, height=dp(40))
+        img_thumbs_layout = BoxLayout(
+            orientation="horizontal", spacing=dp(8), size_hint_y=None, height=dp(70)
+        )
+
+        def open_file_chooser(instance):
+            fc_content = BoxLayout(
+                orientation="vertical", spacing=dp(10), padding=dp(10)
+            )
+            filechooser = FileChooserIconView(
+                filters=["*.png", "*.jpg", "*.jpeg", "*.bmp"],
+                multiselect=True,
+                size_hint_y=None,
+                height=dp(300),
+            )
+            btns = BoxLayout(
+                orientation="horizontal",
+                size_hint_y=None,
+                height=dp(40),
+                spacing=dp(10),
+            )
+            ok_btn = Button(text="OK")
+            cancel_btn = Button(text="Cancel")
+            btns.add_widget(ok_btn)
+            btns.add_widget(cancel_btn)
+            fc_content.add_widget(
+                Label(
+                    text="Select up to 4 images",
+                    font_size=16,
+                    size_hint_y=None,
+                    height=dp(30),
+                )
+            )
+            fc_content.add_widget(filechooser)
+            fc_content.add_widget(btns)
+            fc_popup = Popup(
+                title="",
+                content=fc_content,
+                size_hint=(None, None),
+                size=(dp(500), dp(400)),
+                auto_dismiss=False,
+            )
+
+            def set_images(instance):
+                selected = filechooser.selection[:4]
+                selected_images.clear()
+                # Ensure images directory exists
+                os.makedirs(self.IMAGES_DIR, exist_ok=True)
+                img_thumbs_layout.clear_widgets()
+                for img_path in selected:
+                    # Copy image to diaries_images folder
+                    filename = os.path.basename(img_path)
+                    dest_path = os.path.join(self.IMAGES_DIR, filename)
+                    # Avoid overwriting existing files with same name
+                    base, ext = os.path.splitext(filename)
+                    counter = 1
+                    while os.path.exists(dest_path):
+                        filename = f"{base}_{counter}{ext}"
+                        dest_path = os.path.join(self.IMAGES_DIR, filename)
+                        counter += 1
+                    try:
+                        shutil.copy(img_path, dest_path)
+                        selected_images.append(dest_path)
+                        img_thumbs_layout.add_widget(
+                            Image(
+                                source=dest_path,
+                                size_hint=(None, None),
+                                size=(dp(70), dp(70)),
+                                allow_stretch=True,
+                                keep_ratio=True,
+                            )
+                        )
+                    except Exception as e:
+                        print(f"Error copying image: {e}")
+                fc_popup.dismiss()
+
+            def cancel_fc(instance):
+                fc_popup.dismiss()
+
+            ok_btn.bind(on_release=set_images)
+            cancel_btn.bind(on_release=cancel_fc)
+            fc_popup.open()
+
+        img_btn.bind(on_release=open_file_chooser)
+        btn_layout = BoxLayout(
+            orientation="horizontal", size_hint_y=None, height=dp(40), spacing=dp(10)
+        )
+        save_btn = Button(text="Save")
+        cancel_btn = Button(text="Cancel")
+        btn_layout.add_widget(save_btn)
+        btn_layout.add_widget(cancel_btn)
+        content.add_widget(
+            Label(
+                text="Add Diary Entry",
+                font_size=18,
+                bold=True,
+                size_hint_y=None,
+                height=dp(30),
+            )
+        )
+        content.add_widget(entry_input)
+        content.add_widget(date_btn)
+        content.add_widget(img_btn)
+        content.add_widget(img_thumbs_layout)
+        content.add_widget(btn_layout)
+        popup = Popup(
+            title="",
+            content=content,
+            size_hint=(None, None),
+            size=(dp(400), dp(500)),
+            auto_dismiss=False,
+        )
+
+        def save_entry(instance):
+            text = entry_input.text.strip()
+            date = selected_date[0].isoformat()
+            if text:
+                self.entries.insert(
+                    0, {"date": date, "text": text, "images": list(selected_images)}
+                )
+                self.save_entries()
+                self.refresh_feed()
+            popup.dismiss()
+
+        def cancel_entry(instance):
+            popup.dismiss()
+
+        save_btn.bind(on_release=save_entry)
+        cancel_btn.bind(on_release=cancel_entry)
+        popup.open()
