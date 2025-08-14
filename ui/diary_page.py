@@ -65,7 +65,6 @@ class Card(BoxLayout):
 
         # Images
         if images:
-            # Place up to 3 images per row
             from kivy.uix.gridlayout import GridLayout
             img_grid = GridLayout(
                 cols=min(3, len(images)),
@@ -84,18 +83,20 @@ class Card(BoxLayout):
                     size_hint=(1, 1),
                     fit_mode="contain",
                 )
+                # --- Open image in bigger size on click ---
                 def open_img_popup(instance, path=img_path):
                     popup = Popup(
-                        title="",
+                        title="Image",
                         content=Image(source=path, fit_mode="contain"),
                         size_hint=(None, None),
                         size=(dp(500), dp(500)),
+                        auto_dismiss=True,
                     )
                     popup.open()
                 thumb.bind(
                     on_touch_down=lambda instance, touch, path=img_path: (
                         open_img_popup(instance, path)
-                        if instance.collide_point(*touch.pos) and touch.is_double_tap
+                        if instance.collide_point(*touch.pos) and touch.button == 'left' and touch.is_double_tap
                         else None
                     )
                 )
