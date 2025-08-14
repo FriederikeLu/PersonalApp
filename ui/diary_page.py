@@ -241,11 +241,17 @@ class DiaryPage(Screen):
 
     def refresh_feed(self):
         self.feed.clear_widgets()
-        for idx, entry in enumerate(self.entries):
+        # Sort entries by date (descending, newest first)
+        sorted_entries = sorted(
+            self.entries,
+            key=lambda entry: entry.get("date", ""),
+            reverse=True
+        )
+        for idx, entry in enumerate(sorted_entries):
             images = entry.get("images", [])
             self.feed.add_widget(Card(
                 entry["date"], entry["text"], images=images,
-                entry_index=idx, diary_page=self
+                entry_index=self.entries.index(entry), diary_page=self
             ))
 
     def open_add_popup(self, instance):
@@ -473,6 +479,79 @@ class DiaryPage(Screen):
             size_hint_y=None,
             height=dp(80),
         )
+        # Date editing
+        orig_date = entry.get("date", datetime.date.today().isoformat())
+        selected_date = [datetime.date.fromisoformat(orig_date)]
+        def update_date_btn_text():
+            date_btn.text = selected_date[0].isoformat()
+        def open_date_picker(instance):
+            today = datetime.date.today()
+            picker_content = BoxLayout(
+                orientation="vertical", spacing=dp(10), padding=dp(10)
+            )
+            years = [str(y) for y in range(today.year - 5, today.year + 6)]
+            months = [str(m).zfill(2) for m in range(1, 13)]
+            days = [str(d).zfill(2) for d in range(1, 32)]
+            year_spinner = Spinner(
+                text=str(selected_date[0].year),
+                values=years,
+                size_hint_y=None,
+                height=dp(40),
+            )
+            month_spinner = Spinner(
+                text=str(selected_date[0].month).zfill(2),
+                values=months,
+                size_hint_y=None,
+                height=dp(40),
+            )
+            day_spinner = Spinner(
+                text=str(selected_date[0].day).zfill(2),
+                values=days,
+                size_hint_y=None,
+                height=dp(40),
+            )
+            btns = BoxLayout(
+                orientation="horizontal",
+                size_hint_y=None,
+                height=dp(40),
+                spacing=dp(10),
+            )
+            ok_btn = Button(text="OK")
+            cancel_btn = Button(text="Cancel")
+            btns.add_widget(ok_btn)
+            btns.add_widget(cancel_btn)
+            picker_content.add_widget(
+                Label(text="Select Date", font_size=16, size_hint_y=None, height=dp(30))
+            )
+            picker_content.add_widget(year_spinner)
+            picker_content.add_widget(month_spinner)
+            picker_content.add_widget(day_spinner)
+            picker_content.add_widget(btns)
+            picker_popup = Popup(
+                title="",
+                content=picker_content,
+                size_hint=(None, None),
+                size=(dp(250), dp(300)),
+                auto_dismiss=False,
+            )
+            def set_date(instance):
+                try:
+                    y = int(year_spinner.text)
+                    m = int(month_spinner.text)
+                    d = int(day_spinner.text)
+                    selected_date[0] = datetime.date(y, m, d)
+                    update_date_btn_text()
+                except Exception:
+                    pass
+                picker_popup.dismiss()
+            def cancel_picker(instance):
+                picker_popup.dismiss()
+            ok_btn.bind(on_release=set_date)
+            cancel_btn.bind(on_release=cancel_picker)
+            picker_popup.open()
+        date_btn = Button(text=selected_date[0].isoformat(), size_hint_y=None, height=dp(40))
+        date_btn.bind(on_release=open_date_picker)
+
         selected_images = entry.get("images", []).copy()
         img_thumbs_layout = BoxLayout(
             orientation="horizontal", spacing=dp(8), size_hint_y=None, height=dp(70)
@@ -591,6 +670,7 @@ class DiaryPage(Screen):
             height=dp(30),
         ))
         content.add_widget(entry_input)
+        content.add_widget(date_btn)
         content.add_widget(img_btn)
         content.add_widget(img_thumbs_layout)
         content.add_widget(btn_layout)
@@ -606,6 +686,7 @@ class DiaryPage(Screen):
             text = entry_input.text.strip()
             if text:
                 self.entries[entry_index]["text"] = text
+                self.entries[entry_index]["date"] = selected_date[0].isoformat()
                 self.entries[entry_index]["images"] = list(selected_images)
                 self.save_entries()
                 self.refresh_feed()
