@@ -1,16 +1,38 @@
 [
   {
     "date": "2025-08-14",
+    "text": "multiple pictures try 2",
+    "images": [
+      "Nasser.png",
+      "Marc.png"
+    ]
+  },
+  {
+    "date": "2025-08-14",
+    "text": "multiple pictures",
+    "images": [
+      "hochzeit-ljuby-paul (329 of 363).jpg"
+    ]
+  },
+  {
+    "date": "2025-08-14",
+    "text": "another picture for today",
+    "images": [
+      "Design.png"
+    ]
+  },
+  {
+    "date": "2025-08-14",
     "text": "Today i will upload a new picture",
     "images": [
-      "/Users/friedi/PycharmProjects/PersonalApp/ui/../data/diaries_images/Chart.png"
+      "Chart.png"
     ]
   },
   {
     "date": "2025-07-15",
     "text": "A new entry with picture",
     "images": [
-      "/Users/friedi/Documents/CoCoPred/Paper/Figures/boxplotSC_acc.png"
+      "Chart.png"
     ]
   },
   {

@@ -23,14 +23,27 @@ class Card(BoxLayout):
         super().__init__(
             orientation="vertical",
             size_hint_y=None,
-            height=dp(100) + (dp(70) if images else 0),
+            height=dp(220) if images else dp(100),
             padding=dp(12),
             spacing=dp(6),
             **kwargs,
         )
+        # Card background with light blue and thin black border
         with self.canvas.before:
-            Color(1, 1, 1, 1)  # White card
-            self.bg = RoundedRectangle(radius=[dp(16)], pos=self.pos, size=self.size)
+            Color(0.90, 0.95, 1, 1)  # Light blue
+            self.bg = RoundedRectangle(
+                radius=[dp(16)],
+                pos=self.pos,
+                size=self.size,
+            )
+            Color(0, 0, 0, 1)  # Black
+            from kivy.graphics import Line
+            self.border_line = Line(
+                rounded_rectangle=[
+                    self.x, self.y, self.width, self.height, dp(16)
+                ],
+                width=1.5
+            )
         self.bind(pos=self.update_bg, size=self.update_bg)
         # Date header
         date_label = Label(
@@ -44,42 +57,36 @@ class Card(BoxLayout):
             valign="middle",
         )
         date_label.bind(size=date_label.setter("text_size"))
-        # Entry text
-        entry_label = Label(
-            text=text,
-            font_size=15,
-            color=(0.1, 0.1, 0.1, 1),
-            size_hint_y=None,
-            height=dp(50),
-            halign="left",
-            valign="top",
-        )
-        entry_label.bind(size=entry_label.setter("text_size"))
         self.add_widget(date_label)
-        self.add_widget(entry_label)
         # Images
         if images:
-            img_layout = BoxLayout(
-                orientation="horizontal", spacing=dp(8), size_hint_y=None, height=dp(70)
+            # Place up to 3 images per row
+            from kivy.uix.gridlayout import GridLayout
+            img_grid = GridLayout(
+                cols=min(3, len(images)),
+                spacing=dp(8),
+                size_hint_y=None,
+                row_default_height=dp(140),
+                row_force_default=True,
+                padding=[0, 0, 0, 0],
             )
-            for img_path in images[:4]:
+            rows = (len(images) + 2) // 3
+            img_grid.height = rows * (dp(140) + dp(8))
+            for rel_img_path in images[:9]:  # show up to 9 images
+                img_path = os.path.join(DiaryPage.IMAGES_DIR, rel_img_path)
                 thumb = Image(
                     source=img_path,
-                    size_hint=(None, None),
-                    size=(dp(70), dp(70)),
-                    allow_stretch=True,
-                    keep_ratio=True,
+                    size_hint=(1, 1),
+                    fit_mode="contain",
                 )
-
                 def open_img_popup(instance, path=img_path):
                     popup = Popup(
                         title="",
-                        content=Image(source=path, allow_stretch=True, keep_ratio=True),
+                        content=Image(source=path, fit_mode="contain"),
                         size_hint=(None, None),
                         size=(dp(500), dp(500)),
                     )
                     popup.open()
-
                 thumb.bind(
                     on_touch_down=lambda instance, touch, path=img_path: (
                         open_img_popup(instance, path)
@@ -87,12 +94,74 @@ class Card(BoxLayout):
                         else None
                     )
                 )
-                img_layout.add_widget(thumb)
-            self.add_widget(img_layout)
+                img_grid.add_widget(thumb)
+            self.add_widget(img_grid)
+            # Entry text below images with white background
+            text_box = BoxLayout(
+                orientation="vertical",
+                size_hint_y=None,
+                height=dp(40),
+                padding=[dp(8), dp(4), dp(8), dp(4)],
+            )
+            with text_box.canvas.before:
+                Color(1, 1, 1, 1)  # White
+                text_box.bg = RoundedRectangle(
+                    pos=text_box.pos,
+                    size=text_box.size,
+                    radius=[dp(8)]
+                )
+            def update_text_bg(instance, value):
+                text_box.bg.pos = text_box.pos
+                text_box.bg.size = text_box.size
+            text_box.bind(pos=update_text_bg, size=update_text_bg)
+            entry_label = Label(
+                text=text,
+                font_size=15,
+                color=(0.1, 0.1, 0.1, 1), # Dark grey
+                halign="left",
+                valign="top",
+            )
+            entry_label.bind(size=entry_label.setter("text_size"))
+            text_box.add_widget(entry_label)
+            self.add_widget(text_box)
+            # Adjust card height to fit images and text
+            self.height = img_grid.height + dp(40) + dp(28) + dp(24)
+        else:
+            # Entry text only with white background
+            text_box = BoxLayout(
+                orientation="vertical",
+                size_hint_y=None,
+                height=dp(50),
+                padding=[dp(8), dp(4), dp(8), dp(4)],
+            )
+            with text_box.canvas.before:
+                Color(1, 1, 1, 1)  # White
+                text_box.bg = RoundedRectangle(
+                    pos=text_box.pos,
+                    size=text_box.size,
+                    radius=[dp(8)]
+                )
+            def update_text_bg(instance, value):
+                text_box.bg.pos = text_box.pos
+                text_box.bg.size = text_box.size
+            text_box.bind(pos=update_text_bg, size=update_text_bg)
+            entry_label = Label(
+                text=text,
+                font_size=15,
+                color=(0.1, 0.1, 0.1, 1), # Dark grey
+                halign="left",
+                valign="top",
+            )
+            entry_label.bind(size=entry_label.setter("text_size"))
+            text_box.add_widget(entry_label)
+            self.add_widget(text_box)
 
     def update_bg(self, *args):
         self.bg.pos = self.pos
         self.bg.size = self.size
+        self.border_line.rounded_rectangle = [
+            self.x, self.y, self.width, self.height, dp(16)
+        ]
 
 
 class DiaryPage(Screen):
@@ -108,6 +177,16 @@ class DiaryPage(Screen):
             padding=[dp(16), dp(16), dp(16), dp(16)],
             spacing=dp(12),
         )
+        with main_layout.canvas.before:
+            Color(0.2, 0.4, 0.7, 1) # Dark blue
+            self.bg_rect = RoundedRectangle(pos=main_layout.pos, size=main_layout.size, radius=[0])
+
+        def update_bg_rect(instance, value):
+            self.bg_rect.pos = main_layout.pos
+            self.bg_rect.size = main_layout.size
+
+        main_layout.bind(pos=update_bg_rect, size=update_bg_rect)
+
         header_layout = BoxLayout(
             orientation="horizontal", size_hint_y=None, height=dp(48)
         )
@@ -294,14 +373,11 @@ class DiaryPage(Screen):
             def set_images(instance):
                 selected = filechooser.selection[:4]
                 selected_images.clear()
-                # Ensure images directory exists
                 os.makedirs(self.IMAGES_DIR, exist_ok=True)
                 img_thumbs_layout.clear_widgets()
                 for img_path in selected:
-                    # Copy image to diaries_images folder
                     filename = os.path.basename(img_path)
                     dest_path = os.path.join(self.IMAGES_DIR, filename)
-                    # Avoid overwriting existing files with same name
                     base, ext = os.path.splitext(filename)
                     counter = 1
                     while os.path.exists(dest_path):
@@ -310,7 +386,8 @@ class DiaryPage(Screen):
                         counter += 1
                     try:
                         shutil.copy(img_path, dest_path)
-                        selected_images.append(dest_path)
+                        rel_path = os.path.relpath(dest_path, self.IMAGES_DIR)
+                        selected_images.append(rel_path)
                         img_thumbs_layout.add_widget(
                             Image(
                                 source=dest_path,
