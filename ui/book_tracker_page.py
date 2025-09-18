@@ -2,7 +2,6 @@ from kivy.uix.screenmanager import Screen
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.label import Label
 from kivy.uix.textinput import TextInput
-from kivy.uix.spinner import Spinner
 from kivy.uix.button import Button
 from kivy.uix.scrollview import ScrollView
 from kivy.graphics import Color, RoundedRectangle
@@ -11,105 +10,28 @@ from kivy.uix.image import Image
 from kivy.uix.popup import Popup
 from kivy.metrics import dp
 import os
+from ui.utils import open_date_picker, open_image_chooser
+import datetime
+from kivy.uix.spinner import Spinner
 
 class BookTrackerPage(Screen):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         main_layout = BoxLayout(orientation="vertical", padding=24, spacing=18)
 
-        # Header
+        # Header with "Add Book" button
+        header_layout = BoxLayout(orientation="horizontal", size_hint_y=None, height=dp(54))
         header = Label(
             text="📚 Book Tracker",
             font_size=32,
             bold=True,
             color=(0.2, 0.4, 0.7, 1),
-            size_hint_y=None,
-            height=54,
         )
-        main_layout.add_widget(header)
-
-        # Card-like Book Entry Form
-        form_card = BoxLayout(orientation="vertical", padding=18, spacing=10, size_hint_y=None, height=300)
-        with form_card.canvas.before:
-            Color(0.90, 0.95, 1, 1)  # light blue
-            form_card.bg = RoundedRectangle(radius=[18], pos=form_card.pos, size=form_card.size)
-        def update_bg(instance, value):
-            form_card.bg.pos = form_card.pos
-            form_card.bg.size = form_card.size
-        form_card.bind(pos=update_bg, size=update_bg)
-
-        self.title_input = TextInput(hint_text="Title", size_hint_y=None, height=38, font_size=16)
-        self.author_input = TextInput(hint_text="Author", size_hint_y=None, height=38, font_size=16)
-        self.genre_input = TextInput(hint_text="Genre", size_hint_y=None, height=38, font_size=16)
-        self.end_date_input = TextInput(hint_text="Finished Date (YYYY-MM-DD)", size_hint_y=None, height=38, font_size=16)
-        self.rating_input = TextInput(hint_text="Rating (1-5)", size_hint_y=None, height=38, font_size=16)
-        self.notes_input = TextInput(hint_text="Notes", size_hint_y=None, height=38, font_size=16)
-
-        self.selected_image_path = [None]
-        image_box = BoxLayout(orientation="horizontal", spacing=8, size_hint_y=None, height=60)
-        self.image_preview = Image(size_hint=(None, None), size=(50, 50))
-        choose_img_btn = Button(
-            text="Choose Image",
-            size_hint_y=None,
-            height=38,
-            size_hint_x=None,
-            width=120,
-            color=(0.2, 0.4, 0.7, 1)
-        )
-
-        # Remove any background color or set background_normal to '' to avoid default grey
-        choose_img_btn.background_normal = ''
-        choose_img_btn.background_color = (1, 1, 1, 0)  # Transparent background
-
-        def open_file_chooser(instance):
-            fc_layout = BoxLayout(orientation="vertical", spacing=8, padding=8)
-            filechooser = FileChooserIconView(filters=["*.png", "*.jpg", "*.jpeg", "*.bmp"], size_hint_y=1)
-            btns = BoxLayout(orientation="horizontal", size_hint_y=None, height=40, spacing=8)
-            ok_btn = Button(text="OK")
-            cancel_btn = Button(text="Cancel")
-            btns.add_widget(ok_btn)
-            btns.add_widget(cancel_btn)
-            fc_layout.add_widget(filechooser)
-            fc_layout.add_widget(btns)
-            # Set popup size to match diary_page (500x400)
-            popup = Popup(title="Choose Book Image", content=fc_layout, size_hint=(None, None), size=(dp(500), dp(500)),)
-
-            def set_image(instance):
-                if filechooser.selection:
-                    self.selected_image_path[0] = filechooser.selection[0]
-                    self.image_preview.source = self.selected_image_path[0]
-                popup.dismiss()
-
-            def cancel(instance):
-                popup.dismiss()
-
-            ok_btn.bind(on_release=set_image)
-            cancel_btn.bind(on_release=cancel)
-            popup.open()
-
-        choose_img_btn.bind(on_release=open_file_chooser)
-        image_box.add_widget(self.image_preview)
-        image_box.add_widget(choose_img_btn)
-
-        form_card.add_widget(self.title_input)
-        form_card.add_widget(self.author_input)
-        form_card.add_widget(self.genre_input)
-        form_card.add_widget(self.end_date_input)
-        form_card.add_widget(self.rating_input)
-        form_card.add_widget(self.notes_input)
-        form_card.add_widget(image_box)
-
-        add_btn = Button(
-            text="Add Book",
-            size_hint_y=None,
-            height=42,
-            background_color=(0.2, 0.4, 0.7, 1),
-            color=(1, 1, 1, 1),
-            font_size=17,
-            bold=True,
-        )
-        form_card.add_widget(add_btn)
-        main_layout.add_widget(form_card)
+        add_btn = Button(text="+ Add Book", size_hint_x=None, width=dp(120))
+        add_btn.bind(on_release=self.open_add_popup)
+        header_layout.add_widget(header)
+        header_layout.add_widget(add_btn)
+        main_layout.add_widget(header_layout)
 
         # Filter/Sort Options
         filter_sort_box = BoxLayout(orientation="horizontal", spacing=10, size_hint_y=None, height=38, padding=[0, 8, 0, 8])
@@ -155,3 +77,100 @@ class BookTrackerPage(Screen):
         main_layout.add_widget(stats_card)
 
         self.add_widget(main_layout)
+
+    def open_add_popup(self, instance):
+        content = BoxLayout(orientation="vertical", spacing=dp(10), padding=dp(10))
+        title_input = TextInput(hint_text="Title", size_hint_y=None, height=38, font_size=16)
+        author_input = TextInput(hint_text="Author", size_hint_y=None, height=38, font_size=16)
+        genre_input = TextInput(hint_text="Genre", size_hint_y=None, height=38, font_size=16)
+        # --- Date selection ---
+        today = datetime.date.today()
+        selected_date = [today]
+        def update_date_btn_text():
+            date_btn.text = selected_date[0].isoformat()
+        date_btn = Button(text=today.isoformat(), size_hint_y=None, height=38)
+        def on_date_selected(new_date):
+            selected_date[0] = new_date
+            update_date_btn_text()
+        date_btn.bind(on_release=lambda inst: open_date_picker(date_btn, selected_date, on_date_selected))
+        # --- End date selection ---
+        # --- Book format spinner ---
+        format_spinner = Spinner(
+            text="Format: Paper",
+            values=["Paper", "Ebook", "Audiobook"],
+            size_hint_y=None,
+            height=38,
+            font_size=16,
+        )
+        # --- End book format spinner ---
+        rating_input = TextInput(hint_text="Rating (1-5)", size_hint_y=None, height=38, font_size=16)
+        notes_input = TextInput(hint_text="Notes", size_hint_y=None, height=38, font_size=16)
+
+        selected_image_path = [None]
+        image_box = BoxLayout(orientation="horizontal", spacing=8, size_hint_y=None, height=60)
+        image_preview = Image(size_hint=(None, None), size=(50, 50))
+        choose_img_btn = Button(
+            text="Choose Image",
+            size_hint_y=None,
+            height=38,
+            size_hint_x=None,
+            width=120,
+            color=(0.2, 0.4, 0.7, 1)
+        )
+        choose_img_btn.background_normal = ''
+        choose_img_btn.background_color = (1, 1, 1, 0)  # Transparent background
+
+        def on_images_selected(selected):
+            if selected:
+                selected_image_path[0] = selected[0]
+                image_preview.source = selected[0]
+
+        choose_img_btn.bind(
+            on_release=lambda instance: open_image_chooser(
+                choose_img_btn, on_images_selected, multiselect=False, max_select=1, popup_size=(500, 500)
+            )
+        )
+        image_box.add_widget(image_preview)
+        image_box.add_widget(choose_img_btn)
+
+        btn_layout = BoxLayout(orientation="horizontal", size_hint_y=None, height=dp(40), spacing=dp(10))
+        save_btn = Button(text="Save")
+        cancel_btn = Button(text="Cancel")
+        btn_layout.add_widget(save_btn)
+        btn_layout.add_widget(cancel_btn)
+
+        content.add_widget(Label(
+            text="Add Book Entry",
+            font_size=18,
+            bold=True,
+            size_hint_y=None,
+            height=dp(30),
+        ))
+        content.add_widget(title_input)
+        content.add_widget(author_input)
+        content.add_widget(genre_input)
+        content.add_widget(date_btn)
+        content.add_widget(format_spinner)  # <-- Add format spinner here
+        content.add_widget(rating_input)
+        content.add_widget(notes_input)
+        content.add_widget(image_box)
+        content.add_widget(btn_layout)
+
+        popup = Popup(
+            title="",
+            content=content,
+            size_hint=(None, None),
+            size=(dp(400), dp(600)),
+            auto_dismiss=False,
+        )
+
+        def save_entry(instance):
+            # Here you would save the book entry, including format_spinner.text
+            popup.dismiss()
+
+        def cancel_entry(instance):
+            popup.dismiss()
+
+        save_btn.bind(on_release=save_entry)
+        cancel_btn.bind(on_release=cancel_entry)
+        popup.open()

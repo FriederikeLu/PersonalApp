@@ -20,6 +20,7 @@ import cv2
 from kivy.core.image import Image as CoreImage
 from kivy.uix.image import Image as KivyImage
 import io
+from ui.utils import open_date_picker, open_image_chooser
 
 
 class Card(BoxLayout):
@@ -320,77 +321,11 @@ class DiaryPage(Screen):
         def update_date_btn_text():
             date_btn.text = selected_date[0].isoformat()
 
-        def open_date_picker(instance):
-            picker_content = BoxLayout(
-                orientation="vertical", spacing=dp(10), padding=dp(10)
-            )
-            # Year, month, day spinners
-            years = [str(y) for y in range(today.year - 5, today.year + 6)]
-            months = [str(m).zfill(2) for m in range(1, 13)]
-            days = [str(d).zfill(2) for d in range(1, 32)]
-            year_spinner = Spinner(
-                text=str(selected_date[0].year),
-                values=years,
-                size_hint_y=None,
-                height=dp(40),
-            )
-            month_spinner = Spinner(
-                text=str(selected_date[0].month).zfill(2),
-                values=months,
-                size_hint_y=None,
-                height=dp(40),
-            )
-            day_spinner = Spinner(
-                text=str(selected_date[0].day).zfill(2),
-                values=days,
-                size_hint_y=None,
-                height=dp(40),
-            )
-            btns = BoxLayout(
-                orientation="horizontal",
-                size_hint_y=None,
-                height=dp(40),
-                spacing=dp(10),
-            )
-            ok_btn = Button(text="OK")
-            cancel_btn = Button(text="Cancel")
-            btns.add_widget(ok_btn)
-            btns.add_widget(cancel_btn)
-            picker_content.add_widget(
-                Label(text="Select Date", font_size=16, size_hint_y=None, height=dp(30))
-            )
-            picker_content.add_widget(year_spinner)
-            picker_content.add_widget(month_spinner)
-            picker_content.add_widget(day_spinner)
-            picker_content.add_widget(btns)
-            picker_popup = Popup(
-                title="",
-                content=picker_content,
-                size_hint=(None, None),
-                size=(dp(250), dp(300)),
-                auto_dismiss=False,
-            )
-
-            def set_date(instance):
-                try:
-                    y = int(year_spinner.text)
-                    m = int(month_spinner.text)
-                    d = int(day_spinner.text)
-                    selected_date[0] = datetime.date(y, m, d)
-                    update_date_btn_text()
-                except Exception:
-                    pass
-                picker_popup.dismiss()
-
-            def cancel_picker(instance):
-                picker_popup.dismiss()
-
-            ok_btn.bind(on_release=set_date)
-            cancel_btn.bind(on_release=cancel_picker)
-            picker_popup.open()
-
         date_btn = Button(text=today.isoformat(), size_hint_y=None, height=dp(40))
-        date_btn.bind(on_release=open_date_picker)
+        def on_date_selected(new_date):
+            selected_date[0] = new_date
+            update_date_btn_text()
+        date_btn.bind(on_release=lambda inst: open_date_picker(date_btn, selected_date, on_date_selected))
 
         # Image selection
         img_btn = Button(text="Add Photo(s)", size_hint_y=None, height=dp(40))
@@ -398,46 +333,9 @@ class DiaryPage(Screen):
             orientation="horizontal", spacing=dp(8), size_hint_y=None, height=dp(70)
         )
 
-        def open_image_chooser(instance):
-            fc_content = BoxLayout(
-                orientation="vertical", spacing=dp(10), padding=dp(10)
-            )
-            filechooser = FileChooserIconView(
-                filters=["*.png", "*.jpg", "*.jpeg", "*.bmp"],
-                multiselect=True,
-                size_hint_y=None,
-                height=dp(300),
-            )
-            btns = BoxLayout(
-                orientation="horizontal",
-                size_hint_y=None,
-                height=dp(40),
-                spacing=dp(10),
-            )
-            ok_btn = Button(text="OK")
-            cancel_btn = Button(text="Cancel")
-            btns.add_widget(ok_btn)
-            btns.add_widget(cancel_btn)
-            fc_content.add_widget(
-                Label(
-                    text="Select up to 4 images",
-                    font_size=16,
-                    size_hint_y=None,
-                    height=dp(30),
-                )
-            )
-            fc_content.add_widget(filechooser)
-            fc_content.add_widget(btns)
-            fc_popup = Popup(
-                title="",
-                content=fc_content,
-                size_hint=(None, None),
-                size=(dp(500), dp(400)),
-                auto_dismiss=False,
-            )
-
-            def set_images(instance):
-                selected = filechooser.selection[:4]
+        def open_image_chooser_wrapper(instance):
+            def on_images_selected(selected):
+                selected = selected[:4]
                 selected_images.clear()
                 os.makedirs(self.IMAGES_DIR, exist_ok=True)
                 img_thumbs_layout.clear_widgets()
@@ -465,16 +363,10 @@ class DiaryPage(Screen):
                         )
                     except Exception as e:
                         print(f"Error copying image: {e}")
-                fc_popup.dismiss()
-
-            def cancel_fc(instance):
-                fc_popup.dismiss()
-
-            ok_btn.bind(on_release=set_images)
-            cancel_btn.bind(on_release=cancel_fc)
-            fc_popup.open()
-
-        img_btn.bind(on_release=open_image_chooser)
+            open_image_chooser(
+                img_btn, on_images_selected, multiselect=True, max_select=4, popup_size=(500, 400)
+            )
+        img_btn.bind(on_release=open_image_chooser_wrapper)
 
         # Video selection
         vid_btn = Button(text="Add Video(s)", size_hint_y=None, height=dp(40))
@@ -629,73 +521,11 @@ class DiaryPage(Screen):
         selected_date = [datetime.date.fromisoformat(orig_date)]
         def update_date_btn_text():
             date_btn.text = selected_date[0].isoformat()
-        def open_date_picker(instance):
-            today = datetime.date.today()
-            picker_content = BoxLayout(
-                orientation="vertical", spacing=dp(10), padding=dp(10)
-            )
-            years = [str(y) for y in range(today.year - 5, today.year + 6)]
-            months = [str(m).zfill(2) for m in range(1, 13)]
-            days = [str(d).zfill(2) for d in range(1, 32)]
-            year_spinner = Spinner(
-                text=str(selected_date[0].year),
-                values=years,
-                size_hint_y=None,
-                height=dp(40),
-            )
-            month_spinner = Spinner(
-                text=str(selected_date[0].month).zfill(2),
-                values=months,
-                size_hint_y=None,
-                height=dp(40),
-            )
-            day_spinner = Spinner(
-                text=str(selected_date[0].day).zfill(2),
-                values=days,
-                size_hint_y=None,
-                height=dp(40),
-            )
-            btns = BoxLayout(
-                orientation="horizontal",
-                size_hint_y=None,
-                height=dp(40),
-                spacing=dp(10),
-            )
-            ok_btn = Button(text="OK")
-            cancel_btn = Button(text="Cancel")
-            btns.add_widget(ok_btn)
-            btns.add_widget(cancel_btn)
-            picker_content.add_widget(
-                Label(text="Select Date", font_size=16, size_hint_y=None, height=dp(30))
-            )
-            picker_content.add_widget(year_spinner)
-            picker_content.add_widget(month_spinner)
-            picker_content.add_widget(day_spinner)
-            picker_content.add_widget(btns)
-            picker_popup = Popup(
-                title="",
-                content=picker_content,
-                size_hint=(None, None),
-                size=(dp(250), dp(300)),
-                auto_dismiss=False,
-            )
-            def set_date(instance):
-                try:
-                    y = int(year_spinner.text)
-                    m = int(month_spinner.text)
-                    d = int(day_spinner.text)
-                    selected_date[0] = datetime.date(y, m, d)
-                    update_date_btn_text()
-                except Exception:
-                    pass
-                picker_popup.dismiss()
-            def cancel_picker(instance):
-                picker_popup.dismiss()
-            ok_btn.bind(on_release=set_date)
-            cancel_btn.bind(on_release=cancel_picker)
-            picker_popup.open()
         date_btn = Button(text=selected_date[0].isoformat(), size_hint_y=None, height=dp(40))
-        date_btn.bind(on_release=open_date_picker)
+        def on_date_selected(new_date):
+            selected_date[0] = new_date
+            update_date_btn_text()
+        date_btn.bind(on_release=lambda inst: open_date_picker(date_btn, selected_date, on_date_selected))
 
         selected_images = entry.get("images", []).copy()
         selected_videos = entry.get("videos", []).copy()
@@ -753,46 +583,9 @@ class DiaryPage(Screen):
         refresh_img_thumbs()
         refresh_vid_thumbs()
 
-        def open_image_chooser(instance):
-            fc_content = BoxLayout(
-                orientation="vertical", spacing=dp(10), padding=dp(10)
-            )
-            filechooser = FileChooserIconView(
-                filters=["*.png", "*.jpg", "*.jpeg", "*.bmp"],
-                multiselect=True,
-                size_hint_y=None,
-                height=dp(300),
-            )
-            btns = BoxLayout(
-                orientation="horizontal",
-                size_hint_y=None,
-                height=dp(40),
-                spacing=dp(10),
-            )
-            ok_btn = Button(text="OK")
-            cancel_btn = Button(text="Cancel")
-            btns.add_widget(ok_btn)
-            btns.add_widget(cancel_btn)
-            fc_content.add_widget(
-                Label(
-                    text="Select up to 4 images",
-                    font_size=16,
-                    size_hint_y=None,
-                    height=dp(30),
-                )
-            )
-            fc_content.add_widget(filechooser)
-            fc_content.add_widget(btns)
-            fc_popup = Popup(
-                title="",
-                content=fc_content,
-                size_hint=(None, None),
-                size=(dp(500), dp(400)),
-                auto_dismiss=False,
-            )
-
-            def set_images(instance):
-                selected = filechooser.selection[:4]
+        def open_image_chooser_wrapper(instance):
+            def on_images_selected(selected):
+                selected = selected[:4]
                 os.makedirs(self.IMAGES_DIR, exist_ok=True)
                 for img_path in selected:
                     filename = os.path.basename(img_path)
@@ -811,14 +604,11 @@ class DiaryPage(Screen):
                     except Exception as e:
                         print(f"Error copying image: {e}")
                 refresh_img_thumbs()
-                fc_popup.dismiss()
-
-            def cancel_fc(instance):
-                fc_popup.dismiss()
-
-            ok_btn.bind(on_release=set_images)
-            cancel_btn.bind(on_release=cancel_fc)
-            fc_popup.open()
+            open_image_chooser(
+                img_btn, on_images_selected, multiselect=True, max_select=4, popup_size=(500, 400)
+            )
+        img_btn = Button(text="Add Photo(s)", size_hint_y=None, height=dp(40))
+        img_btn.bind(on_release=open_image_chooser_wrapper)
 
         def open_video_chooser(instance):
             fc_content = BoxLayout(
@@ -887,8 +677,6 @@ class DiaryPage(Screen):
             cancel_btn.bind(on_release=cancel_fc)
             fc_popup.open()
 
-        img_btn = Button(text="Add Photo(s)", size_hint_y=None, height=dp(40))
-        img_btn.bind(on_release=open_image_chooser)
         vid_btn = Button(text="Add Video(s)", size_hint_y=None, height=dp(40))
         vid_btn.bind(on_release=open_video_chooser)
 
