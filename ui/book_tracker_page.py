@@ -17,7 +17,6 @@ import json
 import shutil
 from kivy.uix.gridlayout import GridLayout
 
-# Todo: Show ALL saved data for each book. Including rating, name, Author. Also modify font size
 
 class BookCard(BoxLayout):
     def __init__(self, book, images_dir, edit_callback=None, book_index=None, **kwargs):
@@ -108,20 +107,6 @@ class BookCard(BoxLayout):
             right_box.add_widget(lbl)
         self.add_widget(right_box)
 
-        # Bind double click to open popup
-        self._last_touch_time = 0
-        self.bind(on_touch_down=self._on_touch_down)
-
-    def _on_touch_down(self, instance, touch):
-        if self.collide_point(*touch.pos):
-            import time
-            now = time.time()
-            if hasattr(self, "_last_touch_time") and now - self._last_touch_time < 0.35:
-                self.open_detail_popup()
-                self._last_touch_time = 0
-            else:
-                self._last_touch_time = now
-
     def open_detail_popup(self):
         from kivy.uix.image import Image
         from kivy.uix.label import Label
@@ -211,6 +196,14 @@ class BookTrackerPage(Screen):
         self.current_genre_filter = "All"
 
         main_layout = BoxLayout(orientation="vertical", padding=24, spacing=18)
+        with main_layout.canvas.before:
+            from kivy.graphics import Color, Rectangle
+            Color(0.4, 0.85, 0.7, 1)  # mediumaquamarine
+            self.bg_rect = Rectangle(pos=main_layout.pos, size=main_layout.size)
+        def update_bg_rect(instance, value):
+            self.bg_rect.pos = main_layout.pos
+            self.bg_rect.size = main_layout.size
+        main_layout.bind(pos=update_bg_rect, size=update_bg_rect)
 
         # Header with "Add Book" button
         header_layout = BoxLayout(orientation="horizontal", size_hint_y=None, height=dp(54))
@@ -276,7 +269,7 @@ class BookTrackerPage(Screen):
         self.stats_card.bind(pos=update_stats_bg, size=update_stats_bg)
         self.stats_label = Label(
             text="📊 [Statistics Here]",
-            font_size=16,
+            font_size=24,
             color=(0.2, 0.4, 0.7, 1)  # Dark blue text for readability
         )
         self.stats_card.add_widget(self.stats_label)
@@ -338,7 +331,7 @@ class BookTrackerPage(Screen):
         if not filtered_books:
             self.book_list_grid.add_widget(Label(
                 text="[Book List Here]",
-                font_size=16,
+                font_size=24,
                 color=(0.4, 0.4, 0.4, 1),
                 halign="center",
                 valign="middle",
@@ -380,24 +373,11 @@ class BookTrackerPage(Screen):
         favorite_genre = max(genre_counts, key=genre_counts.get) if genre_counts else "-"
         avg_rating = round(rating_sum / rating_count, 2) if rating_count else "-"
         # Reading streaks: count consecutive days with at least one book finished
-        streak = 0
-        if dates:
-            date_objs = sorted([datetime.datetime.strptime(d, "%Y-%m-%d").date() for d in dates])
-            streak = 1
-            max_streak = 1
-            for i in range(1, len(date_objs)):
-                if (date_objs[i] - date_objs[i-1]).days == 1:
-                    streak += 1
-                    max_streak = max(max_streak, streak)
-                else:
-                    streak = 1
-            streak = max_streak
         # Update statistics label directly
         stats_text = (
             f"Total books: {total_books}   |   "
             f"Favorite genre: {favorite_genre}   |   "
-            f"Average rating: {avg_rating}   |   "
-            f"Longest reading streak: {streak} days"
+            f"Average rating: {avg_rating}"
         )
         self.stats_label.text = stats_text
 
