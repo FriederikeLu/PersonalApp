@@ -55,7 +55,7 @@ class Card(BoxLayout):
         date_label = Label(
             text=date,
             bold=True,
-            font_size=18,
+            font_size=24,
             color=(0.2, 0.4, 0.7, 1),
             halign="left",
             valign="middle",
@@ -195,7 +195,7 @@ class Card(BoxLayout):
         text_box.bind(pos=update_text_bg, size=update_text_bg)
         entry_label = Label(
             text=text,
-            font_size=15,
+            font_size=24,
             color=(0.1, 0.1, 0.1, 1), # Dark grey
             halign="left",
             valign="top",
@@ -397,7 +397,7 @@ class DiaryPage(Screen):
             fc_content.add_widget(
                 Label(
                     text="Select up to 4 videos",
-                    font_size=16,
+                    font_size=32,
                     size_hint_y=None,
                     height=dp(30),
                 )
@@ -463,7 +463,7 @@ class DiaryPage(Screen):
         content.add_widget(
             Label(
                 text="Add Diary Entry",
-                font_size=18,
+                font_size=24,
                 bold=True,
                 size_hint_y=None,
                 height=dp(30),
@@ -633,7 +633,7 @@ class DiaryPage(Screen):
             fc_content.add_widget(
                 Label(
                     text="Select up to 4 videos",
-                    font_size=16,
+                    font_size=24,
                     size_hint_y=None,
                     height=dp(30),
                 )
@@ -692,7 +692,7 @@ class DiaryPage(Screen):
 
         content.add_widget(Label(
             text="Edit Diary Entry",
-            font_size=18,
+            font_size=24,
             bold=True,
             size_hint_y=None,
             height=dp(30),

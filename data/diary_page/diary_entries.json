@@ -1,0 +1,34 @@
+[
+  {
+    "date": "2025-09-18",
+    "text": "today blabla",
+    "images": [
+      "Design_1.png",
+      "C_2.png"
+    ],
+    "videos": []
+  },
+  {
+    "date": "2025-08-14",
+    "text": "Video upload",
+    "images": [],
+    "videos": [
+      "Elli_Friedi_dance.mp4"
+    ]
+  },
+  {
+    "date": "2025-08-14",
+    "text": "Today i will upload a new picture",
+    "images": [
+      "Chart.png"
+    ]
+  },
+  {
+    "date": "2025-07-14",
+    "text": "This is my next entry"
+  },
+  {
+    "date": "2025-07-14",
+    "text": "😃 Today i started creating this new app."
+  }
+]

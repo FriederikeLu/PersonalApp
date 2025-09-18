@@ -30,6 +30,10 @@ class BookCard(BoxLayout):
             self.bg.size = self.size
         self.bind(pos=update_bg, size=update_bg)
 
+        # Store for popup
+        self.book = book
+        self.images_dir = images_dir
+
         # Left: Book image
         if book.get("image"):
             img_path = os.path.join(images_dir, book["image"])
@@ -39,12 +43,12 @@ class BookCard(BoxLayout):
 
         # Middle: Vertical box for title/author at top, note in the middle
         middle_box = BoxLayout(orientation="vertical", spacing=dp(2), size_hint_x=2)
-        # Top: Title and author + Edit button
+        # Top: Title and author
         title_author_box = BoxLayout(orientation="horizontal", spacing=dp(6), size_hint_y=None, height=dp(30))
         title_label = Label(
             text=f"[b]{book.get('title', '')}[/b]",
             markup=True,
-            font_size=18,
+            font_size=32,
             color=(0.2, 0.4, 0.7, 1),
             halign="left",
             valign="middle",
@@ -52,7 +56,7 @@ class BookCard(BoxLayout):
         )
         author_label = Label(
             text=f"by {book.get('author', '')}",
-            font_size=15,
+            font_size=18,
             color=(0.3, 0.3, 0.3, 1),
             halign="left",
             valign="middle",
@@ -62,18 +66,13 @@ class BookCard(BoxLayout):
         author_label.bind(size=author_label.setter("text_size"))
         title_author_box.add_widget(title_label)
         title_author_box.add_widget(author_label)
-        # Edit button
-        if edit_callback is not None and book_index is not None:
-            edit_btn = Button(text="Edit", size_hint_x=None, width=dp(60), height=dp(28))
-            edit_btn.bind(on_release=lambda instance: edit_callback(book_index))
-            title_author_box.add_widget(edit_btn)
         middle_box.add_widget(title_author_box)
         # Middle: Notes
         notes = book.get("notes", "")
         notes_label = Label(
             text=f"[i]{notes}[/i]" if notes else "",
             markup=True,
-            font_size=14,
+            font_size=22,
             color=(0.2, 0.2, 0.2, 1),
             halign="left",
             valign="top"
@@ -84,6 +83,12 @@ class BookCard(BoxLayout):
 
         # Right: Details (vertical, left-aligned)
         right_box = BoxLayout(orientation="vertical", spacing=dp(4), size_hint_x=0.8)
+        # --- Move edit button to top right ---
+        if edit_callback is not None and book_index is not None:
+            edit_btn = Button(text="Edit", size_hint_y=None, height=dp(28), size_hint_x=1)
+            edit_btn.bind(on_release=lambda instance: edit_callback(book_index))
+            right_box.add_widget(edit_btn)
+        # --- End move ---
         for detail in [
             f"Genre: {book.get('genre','')}",
             f"Finished: {book.get('date','')}",
@@ -92,7 +97,7 @@ class BookCard(BoxLayout):
         ]:
             lbl = Label(
                 text=detail,
-                font_size=13,
+                font_size=24,
                 color=(0.3, 0.3, 0.3, 1),
                 halign="left",
                 valign="middle",
@@ -102,6 +107,96 @@ class BookCard(BoxLayout):
             lbl.bind(size=lbl.setter("text_size"))
             right_box.add_widget(lbl)
         self.add_widget(right_box)
+
+        # Bind double click to open popup
+        self._last_touch_time = 0
+        self.bind(on_touch_down=self._on_touch_down)
+
+    def _on_touch_down(self, instance, touch):
+        if self.collide_point(*touch.pos):
+            import time
+            now = time.time()
+            if hasattr(self, "_last_touch_time") and now - self._last_touch_time < 0.35:
+                self.open_detail_popup()
+                self._last_touch_time = 0
+            else:
+                self._last_touch_time = now
+
+    def open_detail_popup(self):
+        from kivy.uix.image import Image
+        from kivy.uix.label import Label
+        from kivy.uix.boxlayout import BoxLayout
+        from kivy.uix.button import Button
+        from kivy.uix.popup import Popup
+        from kivy.metrics import dp
+
+        book = self.book
+        images_dir = self.images_dir
+
+        popup_content = BoxLayout(orientation="vertical", padding=dp(16), spacing=dp(10))
+        # Title and author
+        popup_content.add_widget(Label(
+            text=f"[b]{book.get('title', '')}[/b]",
+            markup=True,
+            font_size=24,
+            halign="center",
+            valign="middle",
+            size_hint_y=None,
+            height=dp(36)
+        ))
+        popup_content.add_widget(Label(
+            text=f"by {book.get('author', '')}",
+            font_size=24,
+            halign="center",
+            valign="middle",
+            size_hint_y=None,
+            height=dp(28)
+        ))
+        # Image
+        if book.get("image"):
+            img_path = os.path.join(images_dir, book["image"])
+            popup_content.add_widget(Image(source=img_path, size_hint_y=None, height=dp(200)))
+        # Notes
+        notes = book.get("notes", "")
+        if notes:
+            popup_content.add_widget(Label(
+                text=f"[i]{notes}[/i]",
+                markup=True,
+                font_size=24,
+                color=(0.2, 0.2, 0.2, 1),
+                halign="left",
+                valign="top",
+                size_hint_y=None,
+                height=dp(40)
+            ))
+        # Details
+        details = [
+            f"Genre: {book.get('genre','')}",
+            f"Finished: {book.get('date','')}",
+            f"Format: {book.get('format','')}",
+            f"Rating: {book.get('rating','')}/10"
+        ]
+        for detail in details:
+            popup_content.add_widget(Label(
+                text=detail,
+                font_size=24,
+                color=(0.3, 0.3, 0.3, 1),
+                halign="left",
+                valign="middle",
+                size_hint_y=None,
+                height=dp(24)
+            ))
+        close_btn = Button(text="Close", size_hint_y=None, height=dp(40))
+        popup_content.add_widget(close_btn)
+        popup = Popup(
+            title="Book Details",
+            content=popup_content,
+            size_hint=(None, None),
+            size=(dp(400), dp(500)),
+            auto_dismiss=True,
+        )
+        close_btn.bind(on_release=popup.dismiss)
+        popup.open()
 
 class BookTrackerPage(Screen):
     DATA_DIR = os.path.join(os.path.dirname(__file__), "../data/book_tracker")
@@ -171,7 +266,7 @@ class BookTrackerPage(Screen):
         main_layout.add_widget(self.scroll)
 
         # Statistics Section
-        self.stats_card = BoxLayout(orientation="vertical", padding=12, spacing=6, size_hint_y=None, height=60)
+        self.stats_card = BoxLayout(orientation="vertical", padding=12, spacing=6, size_hint_y=None, height=dp(60))
         with self.stats_card.canvas.before:
             Color(1, 1, 1, 1)  # White background for statistics card
             self.stats_card.bg = RoundedRectangle(radius=[14], pos=self.stats_card.pos, size=self.stats_card.size)
@@ -308,8 +403,8 @@ class BookTrackerPage(Screen):
 
     def open_add_popup(self, instance):
         content = BoxLayout(orientation="vertical", spacing=dp(10), padding=dp(10))
-        title_input = TextInput(hint_text="Title", size_hint_y=None, height=38, font_size=16)
-        author_input = TextInput(hint_text="Author", size_hint_y=None, height=38, font_size=16)
+        title_input = TextInput(hint_text="Title", size_hint_y=None, height=dp(38), font_size=24)
+        author_input = TextInput(hint_text="Author", size_hint_y=None, height=dp(38), font_size=24)
         # --- Genre selection with dropdown ---
         common_genres = [
             "Fiction", "Non-Fiction", "Mystery", "Fantasy", "Science Fiction", "Biography",
@@ -319,8 +414,8 @@ class BookTrackerPage(Screen):
             text="Select Genre",
             values=common_genres,
             size_hint_y=None,
-            height=38,
-            font_size=16
+            height=dp(38),
+            font_size=24
         )
         # --- End genre selection ---
         # --- Date selection ---
@@ -328,7 +423,7 @@ class BookTrackerPage(Screen):
         selected_date = [today]
         def update_date_btn_text():
             date_btn.text = selected_date[0].isoformat()
-        date_btn = Button(text=today.isoformat(), size_hint_y=None, height=38)
+        date_btn = Button(text=today.isoformat(), size_hint_y=None, height=dp(38))
         def on_date_selected(new_date):
             selected_date[0] = new_date
             update_date_btn_text()
@@ -339,8 +434,8 @@ class BookTrackerPage(Screen):
             text="Format: Paper",
             values=["Paper", "Ebook", "Audiobook"],
             size_hint_y=None,
-            height=38,
-            font_size=16
+            height=dp(38),
+            font_size=24
         )
         # --- End book format spinner ---
         # --- Rating dropdown 0-10 ---
@@ -348,21 +443,21 @@ class BookTrackerPage(Screen):
             text="Rating: 0",
             values=[str(i) for i in range(0, 11)],
             size_hint_y=None,
-            height=38,
-            font_size=16
+            height=dp(38),
+            font_size=24
         )
         # --- End rating dropdown ---
-        notes_input = TextInput(hint_text="Notes", size_hint_y=None, height=38, font_size=16)
+        notes_input = TextInput(hint_text="Notes", size_hint_y=None, height=dp(38), font_size=24)
 
         selected_image_path = [None]
-        image_box = BoxLayout(orientation="horizontal", spacing=8, size_hint_y=None, height=60)
+        image_box = BoxLayout(orientation="horizontal", spacing=8, size_hint_y=None, height=dp(60))
         image_preview = Image(size_hint=(None, None), size=(50, 50))
         choose_img_btn = Button(
             text="Choose Image",
             size_hint_y=None,
-            height=38,
+            height=dp(38),
             size_hint_x=None,
-            width=120,
+            width=dp(120),
             color=(0.2, 0.4, 0.7, 1),
         )
         choose_img_btn.background_normal = ''
@@ -389,7 +484,7 @@ class BookTrackerPage(Screen):
 
         content.add_widget(Label(
             text="Add Book Entry",
-            font_size=18,
+            font_size=28,
             bold=True,
             size_hint_y=None,
             height=dp(30)
@@ -457,8 +552,8 @@ class BookTrackerPage(Screen):
     def open_edit_popup(self, book_index):
         book = self.books[book_index]
         content = BoxLayout(orientation="vertical", spacing=dp(10), padding=dp(10))
-        title_input = TextInput(text=book.get("title", ""), hint_text="Title", size_hint_y=None, height=38, font_size=16)
-        author_input = TextInput(text=book.get("author", ""), hint_text="Author", size_hint_y=None, height=38, font_size=16)
+        title_input = TextInput(text=book.get("title", ""), hint_text="Title", size_hint_y=None, height=dp(38), font_size=24)
+        author_input = TextInput(text=book.get("author", ""), hint_text="Author", size_hint_y=None, height=dp(38), font_size=24)
         # --- Genre selection with dropdown ---
         common_genres = [
             "Fiction", "Non-Fiction", "Mystery", "Fantasy", "Science Fiction", "Biography",
@@ -468,15 +563,15 @@ class BookTrackerPage(Screen):
             text=book.get("genre", "Select Genre") or "Select Genre",
             values=common_genres,
             size_hint_y=None,
-            height=38,
-            font_size=16
+            height=dp(38),
+            font_size=24
         )
         # --- Date selection ---
         orig_date = book.get("date", datetime.date.today().isoformat())
         selected_date = [datetime.date.fromisoformat(orig_date)]
         def update_date_btn_text():
             date_btn.text = selected_date[0].isoformat()
-        date_btn = Button(text=selected_date[0].isoformat(), size_hint_y=None, height=38)
+        date_btn = Button(text=selected_date[0].isoformat(), size_hint_y=None, height=dp(38))
         def on_date_selected(new_date):
             selected_date[0] = new_date
             update_date_btn_text()
@@ -486,30 +581,30 @@ class BookTrackerPage(Screen):
             text=book.get("format", "Format: Paper"),
             values=["Paper", "Ebook", "Audiobook"],
             size_hint_y=None,
-            height=38,
-            font_size=16
+            height=dp(38),
+            font_size=24
         )
         # --- Rating dropdown 0-10 ---
         rating_spinner = Spinner(
             text=str(book.get("rating", "0")),
             values=[str(i) for i in range(0, 11)],
             size_hint_y=None,
-            height=38,
-            font_size=16
+            height=dp(38),
+            font_size=24
         )
-        notes_input = TextInput(text=book.get("notes", ""), hint_text="Notes", size_hint_y=None, height=38, font_size=16)
+        notes_input = TextInput(text=book.get("notes", ""), hint_text="Notes", size_hint_y=None, height=dp(38), font_size=24)
 
         selected_image_path = [os.path.join(self.IMAGES_DIR, book["image"])] if book.get("image") else [None]
-        image_box = BoxLayout(orientation="horizontal", spacing=8, size_hint_y=None, height=60)
+        image_box = BoxLayout(orientation="horizontal", spacing=8, size_hint_y=None, height=dp(60))
         image_preview = Image(size_hint=(None, None), size=(50, 50))
         if selected_image_path[0]:
             image_preview.source = selected_image_path[0]
         choose_img_btn = Button(
             text="Choose Image",
             size_hint_y=None,
-            height=38,
+            height=dp(38),
             size_hint_x=None,
-            width=120,
+            width=dp(120),
             color=(0.2, 0.4, 0.7, 1)
         )
         choose_img_btn.background_normal = ''
