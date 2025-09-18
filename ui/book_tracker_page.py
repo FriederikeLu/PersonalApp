@@ -25,13 +25,15 @@ class BookTrackerPage(Screen):
         super().__init__(**kwargs)
         os.makedirs(self.IMAGES_DIR, exist_ok=True)
         self.books = self.load_entries()
+        self.current_sort = "Date (Newest)"
+        self.current_genre_filter = "All"
 
         main_layout = BoxLayout(orientation="vertical", padding=24, spacing=18)
 
         # Header with "Add Book" button
         header_layout = BoxLayout(orientation="horizontal", size_hint_y=None, height=dp(54))
         header = Label(
-            text="📚 Book Tracker",
+            text="Book Tracker",
             font_size=32,
             bold=True,
             color=(0.2, 0.4, 0.7, 1),
@@ -43,12 +45,39 @@ class BookTrackerPage(Screen):
         main_layout.add_widget(header_layout)
 
         # Filter/Sort Options
-        filter_sort_box = BoxLayout(orientation="horizontal", spacing=10, size_hint_y=None, height=38, padding=[0, 8, 0, 8])
-        filter_sort_box.add_widget(Label(text="🔎 Filter/Sort Options", font_size=16, color=(0.2, 0.4, 0.7, 1)))
+        filter_sort_box = BoxLayout(orientation="horizontal", spacing=10, size_hint_y=None, height=dp(38), padding=[0, 8, 0, 8])
+        #filter_sort_box.add_widget(Label(text="Sort", font_size=32, color=(0.2, 0.4, 0.7, 1), size_hint_x=None, width=dp(30)))
+
+        # Sort Spinner
+        sort_spinner = Spinner(
+            text="Date (Newest)",
+            values=["Date (Newest)", "Date (Oldest)", "Rating (High)", "Rating (Low)", "Title (A-Z)", "Title (Z-A)"],
+            size_hint_x=None,
+            width=dp(130),
+            size_hint_y=None,
+            height=dp(25),
+        )
+        filter_sort_box.add_widget(sort_spinner)
+
+        # Genre Filter Spinner
+        def get_genres():
+            genres = set(book.get("genre", "") for book in self.books if book.get("genre", ""))
+            return ["All"] + sorted(genres)
+
+        genre_spinner = Spinner(
+            text="Genre: All",
+            values=get_genres(),
+            size_hint_x=None,
+            width=dp(130),
+            size_hint_y=None,
+            height=dp(25),
+        )
+        filter_sort_box.add_widget(genre_spinner)
+
         main_layout.add_widget(filter_sort_box)
 
         # Book List (Scrollable)
-        self.book_list_card = BoxLayout(orientation="vertical", padding=12, spacing=8, size_hint_y=1)
+        self.book_list_card = BoxLayout(orientation="vertical", padding=dp(12), spacing=dp(8), size_hint_y=1)
         with self.book_list_card.canvas.before:
             Color(0.97, 0.97, 1, 1)  # very light blue
             self.book_list_card.bg = RoundedRectangle(radius=[14], pos=self.book_list_card.pos, size=self.book_list_card.size)
@@ -61,22 +90,32 @@ class BookTrackerPage(Screen):
         main_layout.add_widget(self.scroll)
 
         # Statistics Section
-        stats_card = BoxLayout(orientation="vertical", padding=12, spacing=6, size_hint_y=None, height=60)
-        with stats_card.canvas.before:
-            Color(0.9, 0.95, 1, 1)  # pastel blue
-            stats_card.bg = RoundedRectangle(radius=[14], pos=stats_card.pos, size=stats_card.size)
+        self.stats_card = BoxLayout(orientation="vertical", padding=12, spacing=6, size_hint_y=None, height=60)
+        with self.stats_card.canvas.before:
+            Color(1, 1, 1, 1)  # White background for statistics card
+            self.stats_card.bg = RoundedRectangle(radius=[14], pos=self.stats_card.pos, size=self.stats_card.size)
         def update_stats_bg(instance, value):
-            stats_card.bg.pos = stats_card.pos
-            stats_card.bg.size = stats_card.size
-        stats_card.bind(pos=update_stats_bg, size=update_stats_bg)
-        stats_card.add_widget(Label(
+            self.stats_card.bg.pos = self.stats_card.pos
+            self.stats_card.bg.size = self.stats_card.size
+        self.stats_card.bind(pos=update_stats_bg, size=update_stats_bg)
+        self.stats_label = Label(
             text="📊 [Statistics Here]",
             font_size=16,
-            color=(0.2, 0.4, 0.7, 1)
-        ))
-        main_layout.add_widget(stats_card)
+            color=(0.2, 0.4, 0.7, 1)  # Dark blue text for readability
+        )
+        self.stats_card.add_widget(self.stats_label)
+        main_layout.add_widget(self.stats_card)
 
         self.add_widget(main_layout)
+        self.sort_spinner = sort_spinner
+        self.genre_spinner = genre_spinner
+        self.sort_spinner.bind(text=self.on_sort_filter_changed)
+        self.genre_spinner.bind(text=self.on_sort_filter_changed)
+        self.refresh_book_list()
+
+    def on_sort_filter_changed(self, *args):
+        self.current_sort = self.sort_spinner.text.replace("Sort: ", "")
+        self.current_genre_filter = self.genre_spinner.text.replace("Genre: ", "")
         self.refresh_book_list()
 
     def load_entries(self):
@@ -101,7 +140,26 @@ class BookTrackerPage(Screen):
 
     def refresh_book_list(self):
         self.book_list_card.clear_widgets()
-        if not self.books:
+        # Filter by genre
+        filtered_books = [
+            book for book in self.books
+            if self.current_genre_filter in ("All", "", None) or book.get("genre", "") == self.current_genre_filter
+        ]
+        # Sort
+        if self.current_sort == "Date (Newest)":
+            filtered_books.sort(key=lambda b: b.get("date", ""), reverse=True)
+        elif self.current_sort == "Date (Oldest)":
+            filtered_books.sort(key=lambda b: b.get("date", ""))
+        elif self.current_sort == "Rating (High)":
+            filtered_books.sort(key=lambda b: float(b.get("rating", "0") or 0), reverse=True)
+        elif self.current_sort == "Rating (Low)":
+            filtered_books.sort(key=lambda b: float(b.get("rating", "0") or 0))
+        elif self.current_sort == "Title (A-Z)":
+            filtered_books.sort(key=lambda b: b.get("title", "").lower())
+        elif self.current_sort == "Title (Z-A)":
+            filtered_books.sort(key=lambda b: b.get("title", "").lower(), reverse=True)
+
+        if not filtered_books:
             self.book_list_card.add_widget(Label(
                 text="[Book List Here]",
                 font_size=16,
@@ -110,7 +168,7 @@ class BookTrackerPage(Screen):
                 valign="middle"
             ))
         else:
-            for book in self.books:
+            for book in filtered_books:
                 row = BoxLayout(orientation="horizontal", spacing=10, size_hint_y=None, height=70, padding=[0, 4, 0, 4])
                 if book.get("image"):
                     img_path = os.path.join(self.IMAGES_DIR, book["image"])
@@ -119,11 +177,73 @@ class BookTrackerPage(Screen):
                 row.add_widget(Label(text=info, markup=True, halign="left", valign="middle"))
                 self.book_list_card.add_widget(row)
 
+        # Update genre spinner values if new genres were added
+        genres = set(book.get("genre", "") for book in self.books if book.get("genre", ""))
+        genre_values = ["All"] + sorted(genres)
+        if tuple(self.genre_spinner.values) != tuple(genre_values):
+            self.genre_spinner.values = genre_values
+
+        # --- Statistics Section ---
+        total_books = len(filtered_books)
+        genre_counts = {}
+        rating_sum = 0
+        rating_count = 0
+        dates = []
+        for book in filtered_books:
+            genre = book.get("genre", "")
+            if genre:
+                genre_counts[genre] = genre_counts.get(genre, 0) + 1
+            try:
+                rating = float(book.get("rating", "0") or 0)
+                rating_sum += rating
+                rating_count += 1
+            except Exception:
+                pass
+            try:
+                dates.append(book.get("date", ""))
+            except Exception:
+                pass
+        favorite_genre = max(genre_counts, key=genre_counts.get) if genre_counts else "-"
+        avg_rating = round(rating_sum / rating_count, 2) if rating_count else "-"
+        # Reading streaks: count consecutive days with at least one book finished
+        streak = 0
+        if dates:
+            date_objs = sorted([datetime.datetime.strptime(d, "%Y-%m-%d").date() for d in dates])
+            streak = 1
+            max_streak = 1
+            for i in range(1, len(date_objs)):
+                if (date_objs[i] - date_objs[i-1]).days == 1:
+                    streak += 1
+                    max_streak = max(max_streak, streak)
+                else:
+                    streak = 1
+            streak = max_streak
+        # Update statistics label directly
+        stats_text = (
+            f"Total books: {total_books}   |   "
+            f"Favorite genre: {favorite_genre}   |   "
+            f"Average rating: {avg_rating}   |   "
+            f"Longest reading streak: {streak} days"
+        )
+        self.stats_label.text = stats_text
+
     def open_add_popup(self, instance):
         content = BoxLayout(orientation="vertical", spacing=dp(10), padding=dp(10))
         title_input = TextInput(hint_text="Title", size_hint_y=None, height=38, font_size=16)
         author_input = TextInput(hint_text="Author", size_hint_y=None, height=38, font_size=16)
-        genre_input = TextInput(hint_text="Genre", size_hint_y=None, height=38, font_size=16)
+        # --- Genre selection with dropdown ---
+        common_genres = [
+            "Fiction", "Non-Fiction", "Mystery", "Fantasy", "Science Fiction", "Biography",
+            "Romance", "Thriller", "Self-Help", "History", "Children", "Young Adult", "Other"
+        ]
+        genre_spinner = Spinner(
+            text="Select Genre",
+            values=common_genres,
+            size_hint_y=None,
+            height=38,
+            font_size=16
+        )
+        # --- End genre selection ---
         # --- Date selection ---
         today = datetime.date.today()
         selected_date = [today]
@@ -141,10 +261,18 @@ class BookTrackerPage(Screen):
             values=["Paper", "Ebook", "Audiobook"],
             size_hint_y=None,
             height=38,
-            font_size=16,
+            font_size=16
         )
         # --- End book format spinner ---
-        rating_input = TextInput(hint_text="Rating (1-5)", size_hint_y=None, height=38, font_size=16)
+        # --- Rating dropdown 0-10 ---
+        rating_spinner = Spinner(
+            text="Rating: 0",
+            values=[str(i) for i in range(0, 11)],
+            size_hint_y=None,
+            height=38,
+            font_size=16
+        )
+        # --- End rating dropdown ---
         notes_input = TextInput(hint_text="Notes", size_hint_y=None, height=38, font_size=16)
 
         selected_image_path = [None]
@@ -156,7 +284,7 @@ class BookTrackerPage(Screen):
             height=38,
             size_hint_x=None,
             width=120,
-            color=(0.2, 0.4, 0.7, 1)
+            color=(0.2, 0.4, 0.7, 1),
         )
         choose_img_btn.background_normal = ''
         choose_img_btn.background_color = (1, 1, 1, 0)  # Transparent background
@@ -185,14 +313,14 @@ class BookTrackerPage(Screen):
             font_size=18,
             bold=True,
             size_hint_y=None,
-            height=dp(30),
+            height=dp(30)
         ))
         content.add_widget(title_input)
         content.add_widget(author_input)
-        content.add_widget(genre_input)
+        content.add_widget(genre_spinner)
         content.add_widget(date_btn)
-        content.add_widget(format_spinner)  # <-- Add format spinner here
-        content.add_widget(rating_input)
+        content.add_widget(format_spinner)
+        content.add_widget(rating_spinner)
         content.add_widget(notes_input)
         content.add_widget(image_box)
         content.add_widget(btn_layout)
@@ -206,7 +334,6 @@ class BookTrackerPage(Screen):
         )
 
         def save_entry(instance):
-            # Save the book entry, including format_spinner.text
             image_filename = None
             if selected_image_path[0]:
                 os.makedirs(self.IMAGES_DIR, exist_ok=True)
@@ -227,15 +354,17 @@ class BookTrackerPage(Screen):
             book = {
                 "title": title_input.text.strip(),
                 "author": author_input.text.strip(),
-                "genre": genre_input.text.strip(),
+                "genre": genre_spinner.text if genre_spinner.text != "Select Genre" else "",
                 "date": selected_date[0].isoformat(),
                 "format": format_spinner.text.replace("Format: ", ""),
-                "rating": rating_input.text.strip(),
+                "rating": rating_spinner.text,
                 "notes": notes_input.text.strip(),
                 "image": image_filename if image_filename else None,
             }
             self.books.append(book)
             self.save_entries()
+            genres = set(b.get("genre", "") for b in self.books if b.get("genre", ""))
+            self.genre_spinner.values = ["All"] + sorted(genres)
             self.refresh_book_list()
             popup.dismiss()
 
