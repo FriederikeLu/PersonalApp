@@ -219,9 +219,9 @@ class Card(BoxLayout):
 
 
 class DiaryPage(Screen):
-    DATA_FILE = os.path.join(os.path.dirname(__file__), "../data/diary_entries.json")
-    IMAGES_DIR = os.path.join(os.path.dirname(__file__), "../data/diaries_images")
-    VIDEOS_DIR = os.path.join(os.path.dirname(__file__), "../data/diary_videos")
+    DATA_FILE = os.path.join(os.path.dirname(__file__), "../data/diary_page/diary_entries.json")
+    IMAGES_DIR = os.path.join(os.path.dirname(__file__), "../data/diary_page/diaries_images")
+    VIDEOS_DIR = os.path.join(os.path.dirname(__file__), "../data/diary_page/diary_videos")
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)

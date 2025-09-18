@@ -13,10 +13,19 @@ import os
 from ui.utils import open_date_picker, open_image_chooser
 import datetime
 from kivy.uix.spinner import Spinner
+import json
+import shutil
 
 class BookTrackerPage(Screen):
+    DATA_DIR = os.path.join(os.path.dirname(__file__), "../data/book_tracker")
+    ENTRIES_FILE = os.path.join(DATA_DIR, "book_entries.json")
+    IMAGES_DIR = os.path.join(DATA_DIR, "images")
+
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
+        os.makedirs(self.IMAGES_DIR, exist_ok=True)
+        self.books = self.load_entries()
+
         main_layout = BoxLayout(orientation="vertical", padding=24, spacing=18)
 
         # Header with "Add Book" button
@@ -39,26 +48,17 @@ class BookTrackerPage(Screen):
         main_layout.add_widget(filter_sort_box)
 
         # Book List (Scrollable)
-        book_list_card = BoxLayout(orientation="vertical", padding=12, spacing=8, size_hint_y=1)
-        with book_list_card.canvas.before:
+        self.book_list_card = BoxLayout(orientation="vertical", padding=12, spacing=8, size_hint_y=1)
+        with self.book_list_card.canvas.before:
             Color(0.97, 0.97, 1, 1)  # very light blue
-            book_list_card.bg = RoundedRectangle(radius=[14], pos=book_list_card.pos, size=book_list_card.size)
+            self.book_list_card.bg = RoundedRectangle(radius=[14], pos=self.book_list_card.pos, size=self.book_list_card.size)
         def update_list_bg(instance, value):
-            book_list_card.bg.pos = book_list_card.pos
-            book_list_card.bg.size = book_list_card.size
-        book_list_card.bind(pos=update_list_bg, size=update_list_bg)
-        scroll = ScrollView(size_hint=(1, 1))
-        book_list_placeholder = Label(
-            text="[Book List Here]",
-            font_size=16,
-            color=(0.4, 0.4, 0.4, 1),
-            halign="center",
-            valign="middle"
-        )
-        book_list_placeholder.bind(size=lambda instance, value: setattr(instance, 'text_size', value))
-        book_list_card.add_widget(book_list_placeholder)
-        scroll.add_widget(book_list_card)
-        main_layout.add_widget(scroll)
+            self.book_list_card.bg.pos = self.book_list_card.pos
+            self.book_list_card.bg.size = self.book_list_card.size
+        self.book_list_card.bind(pos=update_list_bg, size=update_list_bg)
+        self.scroll = ScrollView(size_hint=(1, 1))
+        self.scroll.add_widget(self.book_list_card)
+        main_layout.add_widget(self.scroll)
 
         # Statistics Section
         stats_card = BoxLayout(orientation="vertical", padding=12, spacing=6, size_hint_y=None, height=60)
@@ -77,6 +77,47 @@ class BookTrackerPage(Screen):
         main_layout.add_widget(stats_card)
 
         self.add_widget(main_layout)
+        self.refresh_book_list()
+
+    def load_entries(self):
+        path = os.path.abspath(self.ENTRIES_FILE)
+        if os.path.exists(path):
+            try:
+                with open(path, "r", encoding="utf-8") as f:
+                    return json.load(f)
+            except Exception:
+                return []
+        else:
+            return []
+
+    def save_entries(self):
+        path = os.path.abspath(self.ENTRIES_FILE)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        try:
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(self.books, f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            print(f"Error saving book entries: {e}")
+
+    def refresh_book_list(self):
+        self.book_list_card.clear_widgets()
+        if not self.books:
+            self.book_list_card.add_widget(Label(
+                text="[Book List Here]",
+                font_size=16,
+                color=(0.4, 0.4, 0.4, 1),
+                halign="center",
+                valign="middle"
+            ))
+        else:
+            for book in self.books:
+                row = BoxLayout(orientation="horizontal", spacing=10, size_hint_y=None, height=70, padding=[0, 4, 0, 4])
+                if book.get("image"):
+                    img_path = os.path.join(self.IMAGES_DIR, book["image"])
+                    row.add_widget(Image(source=img_path, size_hint=(None, None), size=(50, 50)))
+                info = f"[b]{book['title']}[/b] by {book['author']} | {book['date']} | {book['format']} | Rating: {book['rating']}"
+                row.add_widget(Label(text=info, markup=True, halign="left", valign="middle"))
+                self.book_list_card.add_widget(row)
 
     def open_add_popup(self, instance):
         content = BoxLayout(orientation="vertical", spacing=dp(10), padding=dp(10))
@@ -165,7 +206,37 @@ class BookTrackerPage(Screen):
         )
 
         def save_entry(instance):
-            # Here you would save the book entry, including format_spinner.text
+            # Save the book entry, including format_spinner.text
+            image_filename = None
+            if selected_image_path[0]:
+                os.makedirs(self.IMAGES_DIR, exist_ok=True)
+                src = selected_image_path[0]
+                filename = os.path.basename(src)
+                dest_path = os.path.join(self.IMAGES_DIR, filename)
+                base, ext = os.path.splitext(filename)
+                counter = 1
+                while os.path.exists(dest_path):
+                    filename = f"{base}_{counter}{ext}"
+                    dest_path = os.path.join(self.IMAGES_DIR, filename)
+                    counter += 1
+                try:
+                    shutil.copy(src, dest_path)
+                    image_filename = filename
+                except Exception as e:
+                    print(f"Error copying image: {e}")
+            book = {
+                "title": title_input.text.strip(),
+                "author": author_input.text.strip(),
+                "genre": genre_input.text.strip(),
+                "date": selected_date[0].isoformat(),
+                "format": format_spinner.text.replace("Format: ", ""),
+                "rating": rating_input.text.strip(),
+                "notes": notes_input.text.strip(),
+                "image": image_filename if image_filename else None,
+            }
+            self.books.append(book)
+            self.save_entries()
+            self.refresh_book_list()
             popup.dismiss()
 
         def cancel_entry(instance):
