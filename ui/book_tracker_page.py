@@ -30,90 +30,73 @@ class BookCard(BoxLayout):
             self.bg.size = self.size
         self.bind(pos=update_bg, size=update_bg)
 
-        # Book image
+        # Left: Book image
         if book.get("image"):
             img_path = os.path.join(images_dir, book["image"])
             self.add_widget(Image(source=img_path, size_hint=(None, None), size=(dp(80), dp(110))))
         else:
             self.add_widget(Label(text="No Image", size_hint=(None, None), size=(dp(80), dp(110)), color=(0.5,0.5,0.5,1)))
 
-        # Book info
-        info_box = BoxLayout(orientation="vertical", spacing=dp(2))
-        # Title at the top, bigger and bold
-        info_box.add_widget(Label(
+        # Middle: Vertical box for title/author at top, note in the middle
+        middle_box = BoxLayout(orientation="vertical", spacing=dp(2), size_hint_x=2)
+        # Top: Title and author
+        title_author_box = BoxLayout(orientation="horizontal", spacing=dp(6), size_hint_y=None, height=dp(30))
+        title_label = Label(
             text=f"[b]{book.get('title', '')}[/b]",
             markup=True,
-            font_size=22,
-			color=(0.3, 0.3, 0.3, 1),
+            font_size=18,
+            color=(0.2, 0.4, 0.7, 1),
             halign="left",
-            valign="top",
-            size_hint_y=None,
-            height=dp(30)
-        ))
-        # Author
-        info_box.add_widget(Label(
+            valign="middle",
+            size_hint_x=0.7
+        )
+        author_label = Label(
             text=f"by {book.get('author', '')}",
-            font_size=16,
-			color=(0.3, 0.3, 0.3, 1),
+            font_size=15,
+            color=(0.3, 0.3, 0.3, 1),
             halign="left",
             valign="middle",
-            size_hint_y=None,
-            height=dp(22)
-        ))
-        # Genre
-        info_box.add_widget(Label(
-            text=f"Genre: {book.get('genre','')}",
-            font_size=14,
-			color=(0.3, 0.3, 0.3, 1),
-            halign="left",
-            valign="middle",
-            size_hint_y=None,
-            height=dp(18)
-        ))
-        # Finished date
-        info_box.add_widget(Label(
-            text=f"Finished: {book.get('date','')}",
-            font_size=14,
-			color=(0.3, 0.3, 0.3, 1),
-            halign="left",
-            valign="middle",
-            size_hint_y=None,
-            height=dp(18)
-        ))
-        # Format
-        info_box.add_widget(Label(
-            text=f"Format: {book.get('format','')}",
-            font_size=14,
-			color=(0.3, 0.3, 0.3, 1),
-            halign="left",
-            valign="middle",
-            size_hint_y=None,
-            height=dp(18)
-        ))
-        # Rating
-        info_box.add_widget(Label(
-            text=f"Rating: {book.get('rating','')}/10",
-            font_size=14,
-			color=(0.3, 0.3, 0.3, 1),
-            halign="left",
-            valign="middle",
-            size_hint_y=None,
-            height=dp(18)
-        ))
-        # Notes
+            size_hint_x=0.3
+        )
+        title_label.bind(size=title_label.setter("text_size"))
+        author_label.bind(size=author_label.setter("text_size"))
+        title_author_box.add_widget(title_label)
+        title_author_box.add_widget(author_label)
+        middle_box.add_widget(title_author_box)
+        # Middle: Notes
         notes = book.get("notes", "")
-        if notes:
-            info_box.add_widget(Label(
-                text=f"[i]{notes}[/i]",
-                markup=True,
+        notes_label = Label(
+            text=f"[i]{notes}[/i]" if notes else "",
+            markup=True,
+            font_size=14,
+            color=(0.2, 0.2, 0.2, 1),
+            halign="left",
+            valign="top"
+        )
+        notes_label.bind(size=notes_label.setter("text_size"))
+        middle_box.add_widget(notes_label)
+        self.add_widget(middle_box)
+
+        # Right: Details (vertical, left-aligned)
+        right_box = BoxLayout(orientation="vertical", spacing=dp(4), size_hint_x=0.8)
+        for detail in [
+            f"Genre: {book.get('genre','')}",
+            f"Finished: {book.get('date','')}",
+            f"Format: {book.get('format','')}",
+            f"Rating: {book.get('rating','')}/10"
+        ]:
+            lbl = Label(
+                text=detail,
                 font_size=13,
-                color=(0.3,0.3,0.3,1),
+                color=(0.3, 0.3, 0.3, 1),
                 halign="left",
-                valign="top",
+                valign="middle",
                 size_hint_y=None,
-                height=dp(20)
-            ))
-        self.add_widget(info_box)
+                height=dp(18)
+            )
+            lbl.bind(size=lbl.setter("text_size"))
+            right_box.add_widget(lbl)
+        self.add_widget(right_box)
 
 class BookTrackerPage(Screen):
     DATA_DIR = os.path.join(os.path.dirname(__file__), "../data/book_tracker")
