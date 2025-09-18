@@ -6,6 +6,7 @@ from kivy.uix.button import Button
 from kivy.uix.screenmanager import ScreenManager, Screen
 from ui.diary_page import DiaryPage
 from home.start_page import StartPage
+from ui.book_tracker_page import BookTrackerPage  # <-- Add this import
 from kivy.uix.scrollview import ScrollView
 from kivy.uix.gridlayout import GridLayout
 from kivy.uix.widget import Widget
@@ -33,14 +34,17 @@ class MainLayout(BoxLayout):
         btn_start = Button(text="Start")
         btn_diary = Button(text="Diary")
         btn_nutrition = Button(text="Nutrition")
+        btn_books = Button(text="Books")  # <-- Add button for Book Tracker
         sidebar.add_widget(btn_start)
         sidebar.add_widget(btn_diary)
         sidebar.add_widget(btn_nutrition)
+        sidebar.add_widget(btn_books)  # <-- Add to sidebar
         # Screen Manager
         self.sm = ScreenManager()
         self.sm.add_widget(StartPage(name="start"))
         self.sm.add_widget(DiaryPage(name="diary"))
         self.sm.add_widget(NutritionPage(name="nutrition"))
+        self.sm.add_widget(BookTrackerPage(name="books"))  # <-- Add BookTrackerPage
 
         # Bind buttons
         def switch_to_start(instance):
@@ -52,9 +56,13 @@ class MainLayout(BoxLayout):
         def switch_to_nutrition(instance):
             self.sm.current = "nutrition"
 
+        def switch_to_books(instance):  # <-- Add handler
+            self.sm.current = "books"
+
         btn_start.bind(on_release=switch_to_start)
         btn_diary.bind(on_release=switch_to_diary)
         btn_nutrition.bind(on_release=switch_to_nutrition)
+        btn_books.bind(on_release=switch_to_books)  # <-- Bind books button
         # Add to layout
         self.add_widget(sidebar)
         self.add_widget(self.sm)
