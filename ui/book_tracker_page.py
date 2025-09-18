@@ -15,6 +15,105 @@ import datetime
 from kivy.uix.spinner import Spinner
 import json
 import shutil
+from kivy.uix.gridlayout import GridLayout
+
+# Todo: Show ALL saved data for each book. Including rating, name, Author. Also modify font size
+
+class BookCard(BoxLayout):
+    def __init__(self, book, images_dir, **kwargs):
+        super().__init__(orientation="horizontal", size_hint_y=None, height=dp(130), padding=dp(10), spacing=dp(12), **kwargs)
+        with self.canvas.before:
+            Color(0.97, 0.97, 1, 1)  # very light blue
+            self.bg = RoundedRectangle(radius=[14], pos=self.pos, size=self.size)
+        def update_bg(instance, value):
+            self.bg.pos = self.pos
+            self.bg.size = self.size
+        self.bind(pos=update_bg, size=update_bg)
+
+        # Book image
+        if book.get("image"):
+            img_path = os.path.join(images_dir, book["image"])
+            self.add_widget(Image(source=img_path, size_hint=(None, None), size=(dp(80), dp(110))))
+        else:
+            self.add_widget(Label(text="No Image", size_hint=(None, None), size=(dp(80), dp(110)), color=(0.5,0.5,0.5,1)))
+
+        # Book info
+        info_box = BoxLayout(orientation="vertical", spacing=dp(2))
+        # Title at the top, bigger and bold
+        info_box.add_widget(Label(
+            text=f"[b]{book.get('title', '')}[/b]",
+            markup=True,
+            font_size=22,
+			color=(0.3, 0.3, 0.3, 1),
+            halign="left",
+            valign="top",
+            size_hint_y=None,
+            height=dp(30)
+        ))
+        # Author
+        info_box.add_widget(Label(
+            text=f"by {book.get('author', '')}",
+            font_size=16,
+			color=(0.3, 0.3, 0.3, 1),
+            halign="left",
+            valign="middle",
+            size_hint_y=None,
+            height=dp(22)
+        ))
+        # Genre
+        info_box.add_widget(Label(
+            text=f"Genre: {book.get('genre','')}",
+            font_size=14,
+			color=(0.3, 0.3, 0.3, 1),
+            halign="left",
+            valign="middle",
+            size_hint_y=None,
+            height=dp(18)
+        ))
+        # Finished date
+        info_box.add_widget(Label(
+            text=f"Finished: {book.get('date','')}",
+            font_size=14,
+			color=(0.3, 0.3, 0.3, 1),
+            halign="left",
+            valign="middle",
+            size_hint_y=None,
+            height=dp(18)
+        ))
+        # Format
+        info_box.add_widget(Label(
+            text=f"Format: {book.get('format','')}",
+            font_size=14,
+			color=(0.3, 0.3, 0.3, 1),
+            halign="left",
+            valign="middle",
+            size_hint_y=None,
+            height=dp(18)
+        ))
+        # Rating
+        info_box.add_widget(Label(
+            text=f"Rating: {book.get('rating','')}/10",
+            font_size=14,
+			color=(0.3, 0.3, 0.3, 1),
+            halign="left",
+            valign="middle",
+            size_hint_y=None,
+            height=dp(18)
+        ))
+        # Notes
+        notes = book.get("notes", "")
+        if notes:
+            info_box.add_widget(Label(
+                text=f"[i]{notes}[/i]",
+                markup=True,
+                font_size=13,
+                color=(0.3,0.3,0.3,1),
+                halign="left",
+                valign="top",
+                size_hint_y=None,
+                height=dp(20)
+            ))
+        self.add_widget(info_box)
 
 class BookTrackerPage(Screen):
     DATA_DIR = os.path.join(os.path.dirname(__file__), "../data/book_tracker")
@@ -76,17 +175,11 @@ class BookTrackerPage(Screen):
 
         main_layout.add_widget(filter_sort_box)
 
-        # Book List (Scrollable)
-        self.book_list_card = BoxLayout(orientation="vertical", padding=dp(12), spacing=dp(8), size_hint_y=1)
-        with self.book_list_card.canvas.before:
-            Color(0.97, 0.97, 1, 1)  # very light blue
-            self.book_list_card.bg = RoundedRectangle(radius=[14], pos=self.book_list_card.pos, size=self.book_list_card.size)
-        def update_list_bg(instance, value):
-            self.book_list_card.bg.pos = self.book_list_card.pos
-            self.book_list_card.bg.size = self.book_list_card.size
-        self.book_list_card.bind(pos=update_list_bg, size=update_list_bg)
+        # Book List (Scrollable, now using GridLayout for cards)
+        self.book_list_grid = GridLayout(cols=1, spacing=dp(12), size_hint_y=None, padding=[0,0,0,0])
+        self.book_list_grid.bind(minimum_height=self.book_list_grid.setter("height"))
         self.scroll = ScrollView(size_hint=(1, 1))
-        self.scroll.add_widget(self.book_list_card)
+        self.scroll.add_widget(self.book_list_grid)
         main_layout.add_widget(self.scroll)
 
         # Statistics Section
@@ -139,7 +232,7 @@ class BookTrackerPage(Screen):
             print(f"Error saving book entries: {e}")
 
     def refresh_book_list(self):
-        self.book_list_card.clear_widgets()
+        self.book_list_grid.clear_widgets()
         # Filter by genre
         filtered_books = [
             book for book in self.books
@@ -160,22 +253,18 @@ class BookTrackerPage(Screen):
             filtered_books.sort(key=lambda b: b.get("title", "").lower(), reverse=True)
 
         if not filtered_books:
-            self.book_list_card.add_widget(Label(
+            self.book_list_grid.add_widget(Label(
                 text="[Book List Here]",
                 font_size=16,
                 color=(0.4, 0.4, 0.4, 1),
                 halign="center",
-                valign="middle"
+                valign="middle",
+                size_hint_y=None,
+                height=dp(60)
             ))
         else:
             for book in filtered_books:
-                row = BoxLayout(orientation="horizontal", spacing=10, size_hint_y=None, height=70, padding=[0, 4, 0, 4])
-                if book.get("image"):
-                    img_path = os.path.join(self.IMAGES_DIR, book["image"])
-                    row.add_widget(Image(source=img_path, size_hint=(None, None), size=(50, 50)))
-                info = f"[b]{book['title']}[/b] by {book['author']} | {book['date']} | {book['format']} | Rating: {book['rating']}"
-                row.add_widget(Label(text=info, markup=True, halign="left", valign="middle"))
-                self.book_list_card.add_widget(row)
+                self.book_list_grid.add_widget(BookCard(book, self.IMAGES_DIR))
 
         # Update genre spinner values if new genres were added
         genres = set(book.get("genre", "") for book in self.books if book.get("genre", ""))
