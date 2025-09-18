@@ -3,7 +3,6 @@ from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.label import Label
 from kivy.uix.scrollview import ScrollView
 from kivy.uix.gridlayout import GridLayout
-from kivy.uix.widget import Widget
 from kivy.graphics import Color, RoundedRectangle
 from kivy.metrics import dp
 from kivy.uix.button import Button
@@ -16,14 +15,19 @@ from kivy.uix.spinner import Spinner
 from kivy.uix.image import Image
 from kivy.uix.filechooser import FileChooserIconView
 import shutil
+from kivy.uix.videoplayer import VideoPlayer
+import cv2
+from kivy.core.image import Image as CoreImage
+from kivy.uix.image import Image as KivyImage
+import io
 
 
 class Card(BoxLayout):
-    def __init__(self, date, text, images=None, entry_index=None, diary_page=None, **kwargs):
+    def __init__(self, date, text, images=None, videos=None, entry_index=None, diary_page=None, **kwargs):
         super().__init__(
             orientation="vertical",
             size_hint_y=None,
-            height=dp(220) if images else dp(100),
+            height=dp(220) if (images or videos) else dp(100),
             padding=dp(12),
             spacing=dp(6),
             **kwargs,
@@ -76,14 +80,13 @@ class Card(BoxLayout):
             )
             rows = (len(images) + 2) // 3
             img_grid.height = rows * (dp(140) + dp(8))
-            for rel_img_path in images[:9]:  # show up to 9 images
+            for rel_img_path in images[:9]:
                 img_path = os.path.join(DiaryPage.IMAGES_DIR, rel_img_path)
                 thumb = Image(
                     source=img_path,
                     size_hint=(1, 1),
                     fit_mode="contain",
                 )
-                # --- Open image in bigger size on click ---
                 def open_img_popup(instance, path=img_path):
                     popup = Popup(
                         title="Image",
@@ -96,71 +99,115 @@ class Card(BoxLayout):
                 thumb.bind(
                     on_touch_down=lambda instance, touch, path=img_path: (
                         open_img_popup(instance, path)
-                        if instance.collide_point(*touch.pos) and touch.button == 'left' and touch.is_double_tap
+                        if instance.collide_point(*touch.pos) and touch.button == 'left'
                         else None
                     )
                 )
                 img_grid.add_widget(thumb)
             self.add_widget(img_grid)
-            # Entry text below images with white background
-            text_box = BoxLayout(
-                orientation="vertical",
+
+        # Videos
+        if videos:
+            from kivy.uix.gridlayout import GridLayout
+            vid_grid = GridLayout(
+                cols=min(3, len(videos)),
+                spacing=dp(8),
                 size_hint_y=None,
-                height=dp(40),
-                padding=[dp(8), dp(4), dp(8), dp(4)],
+                row_default_height=dp(140),
+                row_force_default=True,
+                padding=[0, 0, 0, 0],
             )
-            with text_box.canvas.before:
-                Color(1, 1, 1, 1)  # White
-                text_box.bg = RoundedRectangle(
-                    pos=text_box.pos,
-                    size=text_box.size,
-                    radius=[dp(8)]
+            rows = (len(videos) + 2) // 3
+            vid_grid.height = rows * (dp(140) + dp(8))
+            for rel_vid_path in videos[:9]:
+                vid_path = os.path.join(DiaryPage.VIDEOS_DIR, rel_vid_path)
+                # Try to extract the first frame as a thumbnail
+                thumbnail_widget = None
+                try:
+                    cap = cv2.VideoCapture(vid_path)
+                    success, frame = cap.read()
+                    cap.release()
+                    if success:
+                        # Convert BGR to RGB
+                        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                        # Encode as PNG
+                        _, buf = cv2.imencode('.png', frame)
+                        data = io.BytesIO(buf.tobytes())
+                        core_img = CoreImage(data, ext='png')
+                        thumbnail_widget = KivyImage(
+                            texture=core_img.texture,
+                            size_hint=(1, 1),
+                            fit_mode="contain",
+                        )
+                    else:
+                        thumbnail_widget = KivyImage(
+                            source="video_placeholder.png",
+                            size_hint=(1, 1),
+                            fit_mode="contain",
+                        )
+                except Exception as e:
+                    thumbnail_widget = KivyImage(
+                        source="video_placeholder.png",
+                        size_hint=(1, 1),
+                        fit_mode="contain",
+                    )
+                def open_video_popup(instance, path=vid_path):
+                    player = VideoPlayer(source=path, state='play', options={'allow_stretch': True})
+                    popup = Popup(
+                        title="Video",
+                        content=player,
+                        size_hint=(None, None),
+                        size=(dp(500), dp(500)),
+                        auto_dismiss=True,
+                    )
+                    def on_dismiss(_):
+                        player.state = 'stop'
+                    popup.bind(on_dismiss=on_dismiss)
+                    popup.open()
+                thumbnail_widget.bind(
+                    on_touch_down=lambda instance, touch, path=vid_path: (
+                        open_video_popup(instance, path)
+                        if instance.collide_point(*touch.pos) and touch.button == 'left'
+                        else None
+                    )
                 )
-            def update_text_bg(instance, value):
-                text_box.bg.pos = text_box.pos
-                text_box.bg.size = text_box.size
-            text_box.bind(pos=update_text_bg, size=update_text_bg)
-            entry_label = Label(
-                text=text,
-                font_size=15,
-                color=(0.1, 0.1, 0.1, 1), # Dark grey
-                halign="left",
-                valign="top",
+                vid_grid.add_widget(thumbnail_widget)
+            self.add_widget(vid_grid)
+
+        # Entry text below images/videos with white background
+        text_box = BoxLayout(
+            orientation="vertical",
+            size_hint_y=None,
+            height=dp(40),
+            padding=[dp(8), dp(4), dp(8), dp(4)],
+        )
+        with text_box.canvas.before:
+            Color(1, 1, 1, 1)  # White
+            text_box.bg = RoundedRectangle(
+                pos=text_box.pos,
+                size=text_box.size,
+                radius=[dp(8)]
             )
-            entry_label.bind(size=entry_label.setter("text_size"))
-            text_box.add_widget(entry_label)
-            self.add_widget(text_box)
-            # Adjust card height to fit images and text
-            self.height = img_grid.height + dp(40) + dp(28) + dp(24)
-        else:
-            # Entry text only with white background
-            text_box = BoxLayout(
-                orientation="vertical",
-                size_hint_y=None,
-                height=dp(50),
-                padding=[dp(8), dp(4), dp(8), dp(4)],
-            )
-            with text_box.canvas.before:
-                Color(1, 1, 1, 1)  # White
-                text_box.bg = RoundedRectangle(
-                    pos=text_box.pos,
-                    size=text_box.size,
-                    radius=[dp(8)]
-                )
-            def update_text_bg(instance, value):
-                text_box.bg.pos = text_box.pos
-                text_box.bg.size = text_box.size
-            text_box.bind(pos=update_text_bg, size=update_text_bg)
-            entry_label = Label(
-                text=text,
-                font_size=15,
-                color=(0.1, 0.1, 0.1, 1), # Dark grey
-                halign="left",
-                valign="top",
-            )
-            entry_label.bind(size=entry_label.setter("text_size"))
-            text_box.add_widget(entry_label)
-            self.add_widget(text_box)
+        def update_text_bg(instance, value):
+            text_box.bg.pos = text_box.pos
+            text_box.bg.size = text_box.size
+        text_box.bind(pos=update_text_bg, size=update_text_bg)
+        entry_label = Label(
+            text=text,
+            font_size=15,
+            color=(0.1, 0.1, 0.1, 1), # Dark grey
+            halign="left",
+            valign="top",
+        )
+        entry_label.bind(size=entry_label.setter("text_size"))
+        text_box.add_widget(entry_label)
+        self.add_widget(text_box)
+        # Adjust card height to fit images/videos and text
+        self.height = (
+            (img_grid.height if images else 0)
+            + (vid_grid.height if videos else 0)
+            + dp(40) + dp(28) + dp(24)
+        )
 
     def update_bg(self, *args):
         self.bg.pos = self.pos
@@ -173,6 +220,7 @@ class Card(BoxLayout):
 class DiaryPage(Screen):
     DATA_FILE = os.path.join(os.path.dirname(__file__), "../data/diary_entries.json")
     IMAGES_DIR = os.path.join(os.path.dirname(__file__), "../data/diaries_images")
+    VIDEOS_DIR = os.path.join(os.path.dirname(__file__), "../data/diary_videos")
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -250,8 +298,9 @@ class DiaryPage(Screen):
         )
         for idx, entry in enumerate(sorted_entries):
             images = entry.get("images", [])
+            videos = entry.get("videos", [])
             self.feed.add_widget(Card(
-                entry["date"], entry["text"], images=images,
+                entry["date"], entry["text"], images=images, videos=videos,
                 entry_index=self.entries.index(entry), diary_page=self
             ))
 
@@ -266,6 +315,7 @@ class DiaryPage(Screen):
         today = datetime.date.today()
         selected_date = [today]
         selected_images = []
+        selected_videos = []
 
         def update_date_btn_text():
             date_btn.text = selected_date[0].isoformat()
@@ -341,13 +391,14 @@ class DiaryPage(Screen):
 
         date_btn = Button(text=today.isoformat(), size_hint_y=None, height=dp(40))
         date_btn.bind(on_release=open_date_picker)
+
         # Image selection
         img_btn = Button(text="Add Photo(s)", size_hint_y=None, height=dp(40))
         img_thumbs_layout = BoxLayout(
             orientation="horizontal", spacing=dp(8), size_hint_y=None, height=dp(70)
         )
 
-        def open_file_chooser(instance):
+        def open_image_chooser(instance):
             fc_content = BoxLayout(
                 orientation="vertical", spacing=dp(10), padding=dp(10)
             )
@@ -423,7 +474,93 @@ class DiaryPage(Screen):
             cancel_btn.bind(on_release=cancel_fc)
             fc_popup.open()
 
-        img_btn.bind(on_release=open_file_chooser)
+        img_btn.bind(on_release=open_image_chooser)
+
+        # Video selection
+        vid_btn = Button(text="Add Video(s)", size_hint_y=None, height=dp(40))
+        vid_thumbs_layout = BoxLayout(
+            orientation="horizontal", spacing=dp(8), size_hint_y=None, height=dp(70)
+        )
+
+        def open_video_chooser(instance):
+            fc_content = BoxLayout(
+                orientation="vertical", spacing=dp(10), padding=dp(10)
+            )
+            filechooser = FileChooserIconView(
+                filters=["*.mp4", "*.mov", "*.avi", "*.mkv"],
+                multiselect=True,
+                size_hint_y=None,
+                height=dp(300),
+            )
+            btns = BoxLayout(
+                orientation="horizontal",
+                size_hint_y=None,
+                height=dp(40),
+                spacing=dp(10),
+            )
+            ok_btn = Button(text="OK")
+            cancel_btn = Button(text="Cancel")
+            btns.add_widget(ok_btn)
+            btns.add_widget(cancel_btn)
+            fc_content.add_widget(
+                Label(
+                    text="Select up to 4 videos",
+                    font_size=16,
+                    size_hint_y=None,
+                    height=dp(30),
+                )
+            )
+            fc_content.add_widget(filechooser)
+            fc_content.add_widget(btns)
+            fc_popup = Popup(
+                title="",
+                content=fc_content,
+                size_hint=(None, None),
+                size=(dp(500), dp(400)),
+                auto_dismiss=False,
+            )
+
+            def set_videos(instance):
+                selected = filechooser.selection[:4]
+                selected_videos.clear()
+                os.makedirs(self.VIDEOS_DIR, exist_ok=True)
+                vid_thumbs_layout.clear_widgets()
+                for vid_path in selected:
+                    filename = os.path.basename(vid_path)
+                    dest_path = os.path.join(self.VIDEOS_DIR, filename)
+                    base, ext = os.path.splitext(filename)
+                    counter = 1
+                    while os.path.exists(dest_path):
+                        filename = f"{base}_{counter}{ext}"
+                        dest_path = os.path.join(self.VIDEOS_DIR, filename)
+                        counter += 1
+                    try:
+                        shutil.copy(vid_path, dest_path)
+                        rel_path = os.path.relpath(dest_path, self.VIDEOS_DIR)
+                        selected_videos.append(rel_path)
+                        placeholder_path = os.path.join(os.path.dirname(__file__), "video_placeholder.png")
+                        vid_thumbs_layout.add_widget(
+                            Image(
+                                source=placeholder_path if os.path.exists(placeholder_path) else "",
+                                size_hint=(None, None),
+                                size=(dp(70), dp(70)),
+                                allow_stretch=True,
+                                keep_ratio=True,
+                            )
+                        )
+                    except Exception as e:
+                        print(f"Error copying video: {e}")
+                fc_popup.dismiss()
+
+            def cancel_fc(instance):
+                fc_popup.dismiss()
+
+            ok_btn.bind(on_release=set_videos)
+            cancel_btn.bind(on_release=cancel_fc)
+            fc_popup.open()
+
+        vid_btn.bind(on_release=open_video_chooser)
+
         btn_layout = BoxLayout(
             orientation="horizontal", size_hint_y=None, height=dp(40), spacing=dp(10)
         )
@@ -444,12 +581,14 @@ class DiaryPage(Screen):
         content.add_widget(date_btn)
         content.add_widget(img_btn)
         content.add_widget(img_thumbs_layout)
+        content.add_widget(vid_btn)
+        content.add_widget(vid_thumbs_layout)
         content.add_widget(btn_layout)
         popup = Popup(
             title="",
             content=content,
             size_hint=(None, None),
-            size=(dp(400), dp(500)),
+            size=(dp(400), dp(600)),
             auto_dismiss=False,
         )
 
@@ -458,7 +597,12 @@ class DiaryPage(Screen):
             date = selected_date[0].isoformat()
             if text:
                 self.entries.insert(
-                    0, {"date": date, "text": text, "images": list(selected_images)}
+                    0, {
+                        "date": date,
+                        "text": text,
+                        "images": list(selected_images),
+                        "videos": list(selected_videos)
+                    }
                 )
                 self.save_entries()
                 self.refresh_feed()
@@ -554,11 +698,15 @@ class DiaryPage(Screen):
         date_btn.bind(on_release=open_date_picker)
 
         selected_images = entry.get("images", []).copy()
+        selected_videos = entry.get("videos", []).copy()
         img_thumbs_layout = BoxLayout(
             orientation="horizontal", spacing=dp(8), size_hint_y=None, height=dp(70)
         )
+        vid_thumbs_layout = BoxLayout(
+            orientation="horizontal", spacing=dp(8), size_hint_y=None, height=dp(70)
+        )
 
-        def refresh_thumbs():
+        def refresh_img_thumbs():
             img_thumbs_layout.clear_widgets()
             for rel_img_path in selected_images:
                 img_path = os.path.join(self.IMAGES_DIR, rel_img_path)
@@ -569,21 +717,43 @@ class DiaryPage(Screen):
                     allow_stretch=True,
                     keep_ratio=True,
                 )
-                # Remove button for each image
                 remove_btn = Button(text="X", size_hint=(None, None), size=(dp(24), dp(24)))
                 def remove_img(instance, img=rel_img_path):
                     if img in selected_images:
                         selected_images.remove(img)
-                        refresh_thumbs()
+                        refresh_img_thumbs()
                 remove_btn.bind(on_release=remove_img)
                 img_box = BoxLayout(orientation="vertical", size_hint=(None, None), size=(dp(70), dp(94)))
                 img_box.add_widget(thumb)
                 img_box.add_widget(remove_btn)
                 img_thumbs_layout.add_widget(img_box)
 
-        refresh_thumbs()
+        def refresh_vid_thumbs():
+            vid_thumbs_layout.clear_widgets()
+            for rel_vid_path in selected_videos:
+                placeholder_path = os.path.join(os.path.dirname(__file__), "video_placeholder.png")
+                thumb = Image(
+                    source=placeholder_path if os.path.exists(placeholder_path) else "",
+                    size_hint=(None, None),
+                    size=(dp(70), dp(70)),
+                    allow_stretch=True,
+                    keep_ratio=True,
+                )
+                remove_btn = Button(text="X", size_hint=(None, None), size=(dp(24), dp(24)))
+                def remove_vid(instance, vid=rel_vid_path):
+                    if vid in selected_videos:
+                        selected_videos.remove(vid)
+                        refresh_vid_thumbs()
+                remove_btn.bind(on_release=remove_vid)
+                vid_box = BoxLayout(orientation="vertical", size_hint=(None, None), size=(dp(70), dp(94)))
+                vid_box.add_widget(thumb)
+                vid_box.add_widget(remove_btn)
+                vid_thumbs_layout.add_widget(vid_box)
 
-        def open_file_chooser(instance):
+        refresh_img_thumbs()
+        refresh_vid_thumbs()
+
+        def open_image_chooser(instance):
             fc_content = BoxLayout(
                 orientation="vertical", spacing=dp(10), padding=dp(10)
             )
@@ -640,7 +810,7 @@ class DiaryPage(Screen):
                             selected_images.append(rel_path)
                     except Exception as e:
                         print(f"Error copying image: {e}")
-                refresh_thumbs()
+                refresh_img_thumbs()
                 fc_popup.dismiss()
 
             def cancel_fc(instance):
@@ -650,8 +820,77 @@ class DiaryPage(Screen):
             cancel_btn.bind(on_release=cancel_fc)
             fc_popup.open()
 
+        def open_video_chooser(instance):
+            fc_content = BoxLayout(
+                orientation="vertical", spacing=dp(10), padding=dp(10)
+            )
+            filechooser = FileChooserIconView(
+                filters=["*.mp4", "*.mov", "*.avi", "*.mkv"],
+                multiselect=True,
+                size_hint_y=None,
+                height=dp(300),
+            )
+            btns = BoxLayout(
+                orientation="horizontal",
+                size_hint_y=None,
+                height=dp(40),
+                spacing=dp(10),
+            )
+            ok_btn = Button(text="OK")
+            cancel_btn = Button(text="Cancel")
+            btns.add_widget(ok_btn)
+            btns.add_widget(cancel_btn)
+            fc_content.add_widget(
+                Label(
+                    text="Select up to 4 videos",
+                    font_size=16,
+                    size_hint_y=None,
+                    height=dp(30),
+                )
+            )
+            fc_content.add_widget(filechooser)
+            fc_content.add_widget(btns)
+            fc_popup = Popup(
+                title="",
+                content=fc_content,
+                size_hint=(None, None),
+                size=(dp(500), dp(400)),
+                auto_dismiss=False,
+            )
+
+            def set_videos(instance):
+                selected = filechooser.selection[:4]
+                os.makedirs(self.VIDEOS_DIR, exist_ok=True)
+                for vid_path in selected:
+                    filename = os.path.basename(vid_path)
+                    dest_path = os.path.join(self.VIDEOS_DIR, filename)
+                    base, ext = os.path.splitext(filename)
+                    counter = 1
+                    while os.path.exists(dest_path):
+                        filename = f"{base}_{counter}{ext}"
+                        dest_path = os.path.join(self.VIDEOS_DIR, filename)
+                        counter += 1
+                    try:
+                        shutil.copy(vid_path, dest_path)
+                        rel_path = os.path.relpath(dest_path, self.VIDEOS_DIR)
+                        if rel_path not in selected_videos:
+                            selected_videos.append(rel_path)
+                    except Exception as e:
+                        print(f"Error copying video: {e}")
+                refresh_vid_thumbs()
+                fc_popup.dismiss()
+
+            def cancel_fc(instance):
+                fc_popup.dismiss()
+
+            ok_btn.bind(on_release=set_videos)
+            cancel_btn.bind(on_release=cancel_fc)
+            fc_popup.open()
+
         img_btn = Button(text="Add Photo(s)", size_hint_y=None, height=dp(40))
-        img_btn.bind(on_release=open_file_chooser)
+        img_btn.bind(on_release=open_image_chooser)
+        vid_btn = Button(text="Add Video(s)", size_hint_y=None, height=dp(40))
+        vid_btn.bind(on_release=open_video_chooser)
 
         btn_layout = BoxLayout(
             orientation="horizontal", size_hint_y=None, height=dp(40), spacing=dp(10)
@@ -674,12 +913,14 @@ class DiaryPage(Screen):
         content.add_widget(date_btn)
         content.add_widget(img_btn)
         content.add_widget(img_thumbs_layout)
+        content.add_widget(vid_btn)
+        content.add_widget(vid_thumbs_layout)
         content.add_widget(btn_layout)
         popup = Popup(
             title="",
             content=content,
             size_hint=(None, None),
-            size=(dp(400), dp(500)),
+            size=(dp(400), dp(600)),
             auto_dismiss=False,
         )
 
@@ -689,6 +930,7 @@ class DiaryPage(Screen):
                 self.entries[entry_index]["text"] = text
                 self.entries[entry_index]["date"] = selected_date[0].isoformat()
                 self.entries[entry_index]["images"] = list(selected_images)
+                self.entries[entry_index]["videos"] = list(selected_videos)
                 self.save_entries()
                 self.refresh_feed()
             popup.dismiss()
